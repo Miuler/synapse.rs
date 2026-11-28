@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Task boards (Azure DevOps): pulling now fetches and saves native work item attributes in folder-board task files—clickable provider URL, tags, priority, severity, iteration, area, parent, estimate, start/due dates, scheduling hours (original estimate, remaining and completed work), board column and swimlane, reason, audit fields (created/changed by and date), and acceptance criteria—and falls back to `uniqueName` when an identity has no `displayName`. Kanban cards, the Table view (with sorting and optional columns), and the task detail dialog now display them.
 - Task boards: the source settings are now a side panel, so the agent chat can be used at the same time. An agent opened by Synapse can see the connection (never its credential), test queries read-only and change the query, filter or states on screen; its changes are marked and only you save them. The states of each column can be edited there. These `config_` tools are private: other MCP clients and web pages cannot see or call them.
 - Agent chat: right-click a reply to «Copy block» (the paragraph, list, table or code under the pointer, as Markdown and formatted) or «Copy reply». With text selected, or over a link or image, the system menu appears as before.
 - Agent chat: right-click a tool in the log to copy it (name, input and output), or just the selected text.

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { MessageSquare, Plus } from 'lucide-svelte';
+  import { Calendar, MessageSquare, Plus, User } from 'lucide-svelte';
   import { t } from '@shared/lib/i18n';
   import { clampColumnWidth, COLUMN_WIDTH, type BoardColumn, type BoardTask } from '../model/board.svelte';
 
@@ -100,7 +100,7 @@
   }
 
   function startDrag(e: PointerEvent, task: BoardTask) {
-    if (readOnly || e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
+    if (readOnly || e.button !== 0 || (e.target as HTMLElement).closest('button, a')) return;
     const card = e.currentTarget as HTMLElement;
     const box = card.getBoundingClientRect();
     // Sin esto, al arrastrar se selecciona el texto por donde pasa el puntero
@@ -174,8 +174,10 @@
   }
 
   function openOnDoubleClick(e: MouseEvent, id: string) {
-    if (!(e.target as HTMLElement).closest('button')) onOpenTask(id);
+    if (!(e.target as HTMLElement).closest('button, a')) onOpenTask(id);
   }
+
+  const leaf = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && (drag = resize = null)} />
@@ -201,6 +203,10 @@
 
       <div class="col-cards" class:drop-end={dropHere && dropHere.before === null}>
         {#each colTasks as task (task.id)}
+          {@const showIteration = fields.includes('iteration') && task.iteration}
+          {@const showArea = fields.includes('area') && task.area}
+          {@const showParent = fields.includes('parent') && task.parent}
+          {@const showDue = fields.includes('dueDate') && task.dueDate}
           <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
           <div
             class="card"
@@ -217,17 +223,73 @@
             ondblclick={(e) => openOnDoubleClick(e, task.id)}
           >
             <div class="card-top">
-              <span class="card-id">{(fields.includes('key') && task.key) || task.id}</span>
+              <div class="card-top-left">
+                {#if task.url}
+                  <a
+                    class="card-id card-link"
+                    href={task.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={t('board.openInProvider')}
+                  >{(fields.includes('key') && task.key) || task.id}</a>
+                {:else}
+                  <span class="card-id">{(fields.includes('key') && task.key) || task.id}</span>
+                {/if}
+                {#if fields.includes('priority') && task.priority}
+                  <span
+                    class="priority-badge"
+                    class:priority-high={task.priority === '1' || task.priority === '2'}
+                    title="{t('board.priority')}: {task.priority}"
+                  >P{task.priority}</span>
+                {/if}
+                {#if fields.includes('estimate') && task.estimate}
+                  <span class="estimate-badge" title="{t('board.estimate')}: {task.estimate}">{task.estimate} pt</span>
+                {/if}
+              </div>
               {#if outside.has(task.id)}<span class="outside-badge">{t('issues.outside')}</span>{/if}
               {#if task.dependsOn !== '-'}
                 <span class="dep-badge">↳ {task.dependsOn}</span>
               {/if}
             </div>
             <div class="card-title">{task.title}</div>
-            {#if (fields.includes('type') && task.type) || (fields.includes('assignee') && task.assignee)}
+            {#if (fields.includes('type') && task.type) || (fields.includes('severity') && task.severity) || (fields.includes('assignee') && task.assignee)}
               <div class="card-data">
-                {#if fields.includes('type') && task.type}<span class="card-type">{task.type}</span>{/if}
-                {#if fields.includes('assignee') && task.assignee}<span class="card-assignee">{task.assignee}</span>{/if}
+                <div class="card-data-badges">
+                  {#if fields.includes('type') && task.type}<span class="card-type">{task.type}</span>{/if}
+                  {#if fields.includes('severity') && task.severity}<span class="card-severity">{task.severity}</span>{/if}
+                </div>
+                {#if fields.includes('assignee') && task.assignee}
+                  <span class="card-assignee" title="{t('board.assignee')}: {task.assignee}">
+                    <User size={11} />
+                    <span>{task.assignee}</span>
+                  </span>
+                {/if}
+              </div>
+            {/if}
+            {#if showIteration || showArea || showParent || showDue}
+              <div class="card-meta">
+                {#if showIteration}
+                  <span class="meta-item" title="{t('board.iteration')}: {task.iteration}">{leaf(task.iteration!)}</span>
+                {/if}
+                {#if showArea}
+                  <span class="meta-item" title="{t('board.area')}: {task.area}">{leaf(task.area!)}</span>
+                {/if}
+                {#if showParent}
+                  <span class="meta-item" title="{t('board.parent')}: {task.parent}">↑ {task.parent}</span>
+                {/if}
+                {#if showDue}
+                  <span class="meta-item meta-due" title="{t('board.dueDate')}: {task.dueDate}">
+                    <Calendar size={10} />
+                    <span>{task.dueDate}</span>
+                  </span>
+                {/if}
+              </div>
+            {/if}
+            {#if fields.includes('tags') && task.tags?.length}
+              <div class="card-tags">
+                {#each task.tags as tag (tag)}
+                  <span class="tag-chip">{tag}</span>
+                {/each}
               </div>
             {/if}
             <div class="progress-bar">
@@ -447,23 +509,113 @@
   .card-top {
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    gap: 6px;
     font-size: 11px;
     color: var(--text-muted);
+  }
+
+  .card-top-left {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .card-link {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .card-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+
+  .priority-badge,
+  .estimate-badge {
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .priority-badge.priority-high {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   }
 
   .card-data {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
+    align-items: center;
     gap: 6px;
     font-size: 11px;
     color: var(--text-secondary);
   }
 
-  .card-type {
+  .card-data-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .card-type,
+  .card-severity {
     padding: 0 5px;
     border-radius: 4px;
     background: var(--bg-tertiary);
+  }
+
+  .card-assignee {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+    color: var(--text-secondary);
+  }
+
+  .card-assignee span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .tag-chip {
+    font-size: 10px;
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    color: var(--text-secondary);
   }
 
   .outside-badge {

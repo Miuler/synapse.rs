@@ -37,12 +37,30 @@ export interface BoardTask {
   /** Referencia en el proveedor (`AB#123`). */
   key?: string;
   url?: string;
+  tags?: string[];
+  priority?: string;
+  severity?: string;
+  iteration?: string;
+  area?: string;
+  parent?: string;
+  estimate?: string;
+  dueDate?: string;
+  reason?: string;
+  createdBy?: string;
+  createdAt?: string;
+  changedBy?: string;
+  originalEstimate?: string;
+  remainingWork?: string;
+  completedWork?: string;
+  boardColumn?: string;
+  boardLane?: string;
   /** Lo recién traído del proveedor, hasta que se guarda en el archivo de la tarea. */
   incoming?: {
     entries: ActivityEntry[];
     description?: string;
     /** Huella de la descripción a la que sustituye. */
     over?: string;
+    acceptanceCriteria?: string;
   };
 }
 
@@ -294,7 +312,21 @@ export function placeTask(tasks: BoardTask[], id: string, status: string, before
   return task.status === status && order(rest) === order(tasks) ? tasks : rest;
 }
 
-export type TaskSortKey = 'id' | 'type' | 'assignee' | 'title' | 'status' | 'start' | 'duration' | 'dependsOn' | 'progress';
+export type TaskSortKey =
+  | 'id'
+  | 'type'
+  | 'assignee'
+  | 'priority'
+  | 'iteration'
+  | 'area'
+  | 'estimate'
+  | 'dueDate'
+  | 'title'
+  | 'status'
+  | 'start'
+  | 'duration'
+  | 'dependsOn'
+  | 'progress';
 export interface TaskSort {
   key: TaskSortKey;
   descending: boolean;

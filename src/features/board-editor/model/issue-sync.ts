@@ -71,9 +71,23 @@ export interface Issue {
   assignee?: { name: string; id: string } | null;
   key?: string;
   url?: string | null;
+  labels?: string[];
   /** Markdown. */
   description?: string | null;
   updated_at?: string | null;
+  priority?: string | null;
+  severity?: string | null;
+  iteration?: string | null;
+  area?: string | null;
+  parent?: string | null;
+  estimate?: string | null;
+  due_date?: string | null;
+  start_date?: string | null;
+  created_at?: string | null;
+  created_by?: { name: string; id: string } | null;
+  changed_by?: { name: string; id: string } | null;
+  reason?: string | null;
+  acceptance_criteria?: string | null;
   /** Lo que no cabe en el modelo común. */
   extra?: Record<string, string>;
 }
@@ -111,9 +125,55 @@ function columnOf(doc: BoardDocument, provider: IssueProvider, state: Issue['sta
   );
 }
 
+const REMOTE_OPTIONAL = [
+  'type',
+  'assignee',
+  'key',
+  'url',
+  'tags',
+  'priority',
+  'severity',
+  'iteration',
+  'area',
+  'parent',
+  'estimate',
+  'dueDate',
+  'reason',
+  'createdBy',
+  'createdAt',
+  'changedBy',
+  'originalEstimate',
+  'remainingWork',
+  'completedWork',
+  'boardColumn',
+  'boardLane',
+] as const;
+
 /** Lo que de una tarea solo dice el proveedor. */
 function remoteFields(item: Issue): Partial<BoardTask> {
-  const fields: Partial<BoardTask> = { type: item.type || undefined, assignee: item.assignee?.name, key: item.key, url: item.url ?? undefined };
+  const fields: Partial<BoardTask> = {
+    type: item.type || undefined,
+    assignee: item.assignee?.name,
+    key: item.key,
+    url: item.url ?? undefined,
+    tags: item.labels?.length ? item.labels : undefined,
+    priority: item.priority ?? undefined,
+    severity: item.severity ?? undefined,
+    iteration: item.iteration ?? undefined,
+    area: item.area ?? undefined,
+    parent: item.parent ?? undefined,
+    estimate: item.estimate ?? undefined,
+    dueDate: item.due_date ?? undefined,
+    reason: item.reason ?? undefined,
+    createdBy: item.created_by?.name,
+    createdAt: item.created_at ?? undefined,
+    changedBy: item.changed_by?.name,
+    originalEstimate: item.extra?.original_estimate,
+    remainingWork: item.extra?.remaining_work,
+    completedWork: item.extra?.completed_work,
+    boardColumn: item.extra?.board_column,
+    boardLane: item.extra?.board_lane,
+  };
   return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined));
 }
 
@@ -169,9 +229,12 @@ export function applyPull(
       else links[task.id] = link;
       return task;
     }
-    const next: BoardTask = { ...task, ...remoteFields(item) };
-    // Sin asignar en el proveedor, deja de estarlo aquí
-    if (item.assignee === null) delete next.assignee;
+    const remote = remoteFields(item);
+    const next: BoardTask = { ...task, ...remote };
+    // Lo que el proveedor ya no tiene deja de figurar aquí
+    for (const key of REMOTE_OPTIONAL) {
+      if (remote[key] === undefined) delete next[key];
+    }
     const base: IssueLink = { ...link };
     let conflict = false;
 
@@ -235,7 +298,17 @@ export function applyPull(
     used.add(id);
     const title = cellText(item.title);
     const status = columnOf(doc, provider, item.state) ?? doc.columns[0]?.id ?? 'todo';
-    tasks.push({ id, title, status, start: today, duration: 1, dependsOn: '-', progress: 0, comments: [], ...remoteFields(item) });
+    tasks.push({
+      id,
+      title,
+      status,
+      start: item.start_date || today,
+      duration: 1,
+      dependsOn: '-',
+      progress: 0,
+      comments: [],
+      ...remoteFields(item),
+    });
     links[id] = { id: item.id, title, state: item.state.name, column: status };
     added++;
   }

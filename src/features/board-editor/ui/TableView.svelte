@@ -23,17 +23,26 @@
 
   let { tasks, columns, readOnly = false, outside, fields, sort, onSort, onUpdateTask, onDeleteTask, onAddTask, onSelectComments }: Props = $props();
 
-  let headers = $derived<{ key: TaskSortKey; label: string; class?: string }[]>([
-    { key: 'id', label: 'ID', class: 'col-id' },
-    ...(fields.includes('type') ? [{ key: 'type' as const, label: t('board.type') }] : []),
-    { key: 'title', label: t('board.columns.task') },
-    { key: 'status', label: t('board.columns.status') },
-    ...(fields.includes('assignee') ? [{ key: 'assignee' as const, label: t('board.assignee') }] : []),
-    { key: 'start', label: t('board.columns.start') },
-    { key: 'duration', label: t('board.columns.duration'), class: 'col-num' },
-    { key: 'dependsOn', label: t('board.columns.dependsOn') },
-    { key: 'progress', label: t('board.columns.progress'), class: 'col-num' },
+  type TableColumn = { key: TaskSortKey | 'tags'; label: string; class?: string; sortable?: boolean };
+  let headers = $derived<TableColumn[]>([
+    { key: 'id', label: 'ID', class: 'col-id', sortable: true },
+    ...(fields.includes('type') ? [{ key: 'type' as const, label: t('board.type'), sortable: true }] : []),
+    ...(fields.includes('priority') ? [{ key: 'priority' as const, label: t('board.priority'), class: 'col-num', sortable: true }] : []),
+    { key: 'title', label: t('board.columns.task'), sortable: true },
+    { key: 'status', label: t('board.columns.status'), sortable: true },
+    ...(fields.includes('assignee') ? [{ key: 'assignee' as const, label: t('board.assignee'), sortable: true }] : []),
+    ...(fields.includes('iteration') ? [{ key: 'iteration' as const, label: t('board.iteration'), sortable: true }] : []),
+    ...(fields.includes('area') ? [{ key: 'area' as const, label: t('board.area'), sortable: true }] : []),
+    ...(fields.includes('estimate') ? [{ key: 'estimate' as const, label: t('board.estimate'), class: 'col-num', sortable: true }] : []),
+    ...(fields.includes('dueDate') ? [{ key: 'dueDate' as const, label: t('board.dueDate'), sortable: true }] : []),
+    ...(fields.includes('tags') ? [{ key: 'tags' as const, label: t('board.tags'), sortable: false }] : []),
+    { key: 'start', label: t('board.columns.start'), sortable: true },
+    { key: 'duration', label: t('board.columns.duration'), class: 'col-num', sortable: true },
+    { key: 'dependsOn', label: t('board.columns.dependsOn'), sortable: true },
+    { key: 'progress', label: t('board.columns.progress'), class: 'col-num', sortable: true },
   ]);
+
+  const leaf = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 
   // Se ordena al elegir columna y al añadir o quitar tareas, no mientras se escribe: la fila no salta
   let ids = $derived(tasks.map((task) => task.id).join('\n'));
@@ -72,18 +81,22 @@
     <thead>
       <tr>
         {#each headers as header (header.key)}
-          {@const active = sort?.key === header.key ? sort : null}
+          {@const active = header.sortable && sort?.key === header.key ? sort : null}
           <th class={header.class} aria-sort={active ? (active.descending ? 'descending' : 'ascending') : 'none'}>
-            <button
-              type="button"
-              class="sort-btn"
-              data-sort={header.key}
-              title={t('board.sortHint')}
-              onclick={() => toggleSort(header.key)}
-            >
+            {#if header.sortable}
+              <button
+                type="button"
+                class="sort-btn"
+                data-sort={header.key}
+                title={t('board.sortHint')}
+                onclick={() => toggleSort(header.key as TaskSortKey)}
+              >
+                {header.label}
+                {#if active?.descending}<ArrowDown size={12} />{:else if active}<ArrowUp size={12} />{/if}
+              </button>
+            {:else}
               {header.label}
-              {#if active?.descending}<ArrowDown size={12} />{:else if active}<ArrowUp size={12} />{/if}
-            </button>
+            {/if}
           </th>
         {/each}
         <th class="col-actions"></th>
@@ -94,14 +107,27 @@
         <!-- Los campos editables conservan su doble clic (seleccionar texto) -->
         <tr
           ondblclick={(e) =>
-            !(e.target as HTMLElement).closest('input, select, button') && onSelectComments(task.id)}
+            !(e.target as HTMLElement).closest('input, select, button, a') && onSelectComments(task.id)}
         >
           <td class="col-id">
             <code>{task.id}</code>
-            {#if fields.includes('key') && task.key}<small class="task-key">{task.key}</small>{/if}
+            {#if fields.includes('key') && task.key}
+              {#if task.url}
+                <a
+                  class="task-key task-link"
+                  href={task.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={t('board.openInProvider')}
+                >{task.key}</a>
+              {:else}
+                <small class="task-key">{task.key}</small>
+              {/if}
+            {/if}
             {#if outside.has(task.id)}<small class="outside-badge">{t('issues.outside')}</small>{/if}
           </td>
           {#if fields.includes('type')}<td class="cell-type">{task.type ?? ''}</td>{/if}
+          {#if fields.includes('priority')}<td class="col-num cell-meta">{task.priority ? `P${task.priority}` : ''}</td>{/if}
           <td>
             <input
               disabled={readOnly}
@@ -122,6 +148,19 @@
             </select>
           </td>
           {#if fields.includes('assignee')}<td class="cell-assignee">{task.assignee ?? ''}</td>{/if}
+          {#if fields.includes('iteration')}<td class="cell-meta" title={task.iteration}>{task.iteration ? leaf(task.iteration) : ''}</td>{/if}
+          {#if fields.includes('area')}<td class="cell-meta" title={task.area}>{task.area ? leaf(task.area) : ''}</td>{/if}
+          {#if fields.includes('estimate')}<td class="col-num cell-meta">{task.estimate ?? ''}</td>{/if}
+          {#if fields.includes('dueDate')}<td class="cell-meta">{task.dueDate ?? ''}</td>{/if}
+          {#if fields.includes('tags')}
+            <td class="cell-tags">
+              {#if task.tags?.length}
+                {#each task.tags as tag (tag)}
+                  <span class="table-tag">{tag}</span>
+                {/each}
+              {/if}
+            </td>
+          {/if}
           <td>
             <input
               disabled={readOnly}
@@ -227,10 +266,37 @@
     color: var(--text-secondary);
   }
 
+  .task-link {
+    font-size: 11px;
+    text-decoration: none;
+  }
+
+  .task-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+
   .cell-type,
-  .cell-assignee {
+  .cell-assignee,
+  .cell-meta {
     padding: 4px 8px;
     white-space: nowrap;
+  }
+
+  .cell-tags {
+    padding: 4px 6px;
+    white-space: nowrap;
+  }
+
+  .table-tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 0 5px;
+    margin-right: 4px;
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    color: var(--text-secondary);
   }
 
   .outside-badge {

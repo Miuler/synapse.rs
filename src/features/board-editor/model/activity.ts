@@ -109,10 +109,20 @@ export function receive(
       ...(description.base && { description: description.base }),
     };
     const merged = file && mergeActivity(file.activity, entries, link.sent);
-    if (file && (description.take !== undefined || JSON.stringify(merged) !== JSON.stringify(file.activity))) changed.push(task.id);
+    const nextAcceptance = item.acceptance_criteria ?? '';
+    const acceptanceUpdate = file
+      ? nextAcceptance !== file.acceptanceCriteria
+        ? nextAcceptance
+        : undefined
+      : item.acceptance_criteria || undefined;
+    if (file && (description.take !== undefined || acceptanceUpdate !== undefined || JSON.stringify(merged) !== JSON.stringify(file.activity))) changed.push(task.id);
     return {
       ...task,
-      incoming: { entries, ...(description.take !== undefined && { description: description.take, over: fingerprint(local) }) },
+      incoming: {
+        entries,
+        ...(description.take !== undefined && { description: description.take, over: fingerprint(local) }),
+        ...(acceptanceUpdate !== undefined && { acceptanceCriteria: acceptanceUpdate }),
+      },
     };
   });
   return { doc: { ...doc, tasks, source: doc.source && { ...doc.source, links } }, changed, conflicts };

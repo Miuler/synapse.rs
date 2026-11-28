@@ -4,8 +4,11 @@ import { placeTask } from './board.svelte';
 import { buildPushPlan, type IssueProvider } from './issue-sync';
 
 const card = (id: string, title: string, status: string, extra: Partial<TaskCard> = {}): TaskCard => ({
-  id, hash: 'h', title, status, type: null, assignee: null, key: null, url: null, start: '2026-01-01',
-  duration: 1, dependsOn: '-', progress: 0, sync: null, extra: [], comments: [], ...extra,
+  id, hash: 'h', title, status, type: null, assignee: null, key: null, url: null, tags: [],
+  priority: null, severity: null, iteration: null, area: null, parent: null, estimate: null, dueDate: null,
+  reason: null, createdBy: null, createdAt: null, changedBy: null, originalEstimate: null,
+  remainingWork: null, completedWork: null, boardColumn: null, boardLane: null,
+  start: '2026-01-01', duration: 1, dependsOn: '-', progress: 0, sync: null, extra: [], comments: [], ...extra,
 });
 
 const snapshot = (): BoardSnapshot => ({

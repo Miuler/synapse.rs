@@ -22,14 +22,21 @@ const board = (link: object = {}, comments: ActivityEntry[] = []): BoardSnapshot
     source: { provider: 'p', connection: '', scope: 's' },
   },
   tasks: [{
-    id: 'a', hash: 'h', title: 'A', status: 'todo', type: null, assignee: null, key: null, url: null, start: '2026-01-01',
-    duration: 1, dependsOn: '-', progress: 0, extra: [], comments,
+    id: 'a', hash: 'h', title: 'A', status: 'todo', type: null, assignee: null, key: null, url: null, tags: [],
+    priority: null, severity: null, iteration: null, area: null, parent: null, estimate: null, dueDate: null,
+    reason: null, createdBy: null, createdAt: null, changedBy: null, originalEstimate: null,
+    remainingWork: null, completedWork: null, boardColumn: null, boardLane: null,
+    start: '2026-01-01', duration: 1, dependsOn: '-', progress: 0, extra: [], comments,
     sync: { id: '1', title: 'A', state: 'New', column: 'todo', ...link },
   }],
 });
 const file = (extra: Partial<TaskFile> = {}): TaskFile => ({
-  title: 'A', status: 'todo', type: null, assignee: null, key: null, url: null, start: '2026-01-01', duration: 1,
-  dependsOn: '-', progress: 0, sync: null, extra: [], description: '', activity: [], preamble: '', sections: '', ...extra,
+  title: 'A', status: 'todo', type: null, assignee: null, key: null, url: null, tags: [],
+  priority: null, severity: null, iteration: null, area: null, parent: null, estimate: null, dueDate: null,
+  reason: null, createdBy: null, createdAt: null, changedBy: null, originalEstimate: null,
+  remainingWork: null, completedWork: null, boardColumn: null, boardLane: null,
+  start: '2026-01-01', duration: 1, dependsOn: '-', progress: 0, sync: null, extra: [],
+  description: '', acceptanceCriteria: '', activity: [], preamble: '', sections: '', ...extra,
 });
 
 describe('actividad traída', () => {
@@ -167,6 +174,83 @@ describe('editar en el detalle', () => {
     const doc = folderDocument(board());
     const result = applyPull(doc, provider, [{ ...item('4'), type: 'Epic', assignee: { name: 'Ana', id: 'a' } }], ['1'], '2026-01-01');
     expect([result.doc.tasks[0].type, result.doc.tasks[0].assignee]).toEqual(['Epic', 'Ana']);
+  });
+
+  it('propaga los atributos nativos del proveedor hasta el archivo y el tablero', () => {
+    const rich: Issue = {
+      ...item('7', 'desc'),
+      key: 'AB#1',
+      url: 'https://dev.azure.com/org/Proj/_workitems/edit/1',
+      type: 'User Story',
+      assignee: { name: 'Ana', id: 'ana@test' },
+      labels: ['api', 'urgente'],
+      priority: '1',
+      severity: '2 - High',
+      iteration: 'Proj\\Sprint 4',
+      area: 'Proj\\Backend',
+      parent: 'AB#10',
+      estimate: '5',
+      due_date: '2026-02-15',
+      start_date: '2026-02-01',
+      created_at: '2026-01-30T10:00:00',
+      created_by: { name: 'Luis', id: 'luis@test' },
+      changed_by: { name: 'Ana', id: 'ana@test' },
+      reason: 'Approved',
+      acceptance_criteria: '- Todo verde',
+      extra: {
+        original_estimate: '8',
+        remaining_work: '3',
+        completed_work: '5',
+        board_column: 'Doing',
+        board_lane: 'Expedite',
+      },
+    };
+    const emptyDoc = folderDocument({ ...board(), tasks: [] });
+    const pulled = applyPull(emptyDoc, { ...provider, task_prefix: 'ado' }, [rich], ['1'], '2026-02-02');
+    const received = receive(pulled.doc, [rich], { '1': [] }, {});
+    const task = received.doc.tasks[0];
+    expect(task).toMatchObject({
+      id: 'ado-1',
+      key: 'AB#1',
+      url: 'https://dev.azure.com/org/Proj/_workitems/edit/1',
+      assignee: 'Ana',
+      tags: ['api', 'urgente'],
+      priority: '1',
+      severity: '2 - High',
+      iteration: 'Proj\\Sprint 4',
+      area: 'Proj\\Backend',
+      parent: 'AB#10',
+      estimate: '5',
+      dueDate: '2026-02-15',
+      start: '2026-02-01',
+      createdBy: 'Luis',
+      createdAt: '2026-01-30T10:00:00',
+      changedBy: 'Ana',
+      reason: 'Approved',
+      originalEstimate: '8',
+      remainingWork: '3',
+      completedWork: '5',
+      boardColumn: 'Doing',
+      boardLane: 'Expedite',
+    });
+    const written = applyTask(null, null, { task, link: received.doc.source!.links!['ado-1'] });
+    expect(written.acceptanceCriteria).toBe('- Todo verde');
+    expect(written.tags).toEqual(['api', 'urgente']);
+    const reloaded = folderDocument({
+      ...board(),
+      tasks: [{ ...written, id: 'ado-1', hash: 'h', comments: [] }],
+    });
+    expect(reloaded.tasks[0]).toMatchObject({
+      assignee: 'Ana',
+      priority: '1',
+      tags: ['api', 'urgente'],
+      boardColumn: 'Doing',
+    });
+    // Si el proveedor quita etiquetas o prioridad en un pull posterior, también se limpian
+    const cleared = applyPull(reloaded, provider, [{ ...item('8'), key: 'AB#1', type: 'User Story' }], ['1'], '2026-02-03');
+    expect(cleared.doc.tasks[0].tags).toBeUndefined();
+    expect(cleared.doc.tasks[0].priority).toBeUndefined();
+    expect(cleared.doc.tasks[0].assignee).toBeUndefined();
   });
 });
 

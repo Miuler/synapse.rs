@@ -241,10 +241,39 @@
   });
 
   /** Qué datos del proveedor se ven en las tarjetas y en la tabla. */
-  const KNOWN_FIELDS = ['key', 'type', 'assignee'] as const;
-  let cardFields = $derived(doc.fields?.card?.length ? doc.fields.card : [...KNOWN_FIELDS]);
+  const DEFAULT_CARD_FIELDS = [
+    'key',
+    'type',
+    'assignee',
+    'priority',
+    'severity',
+    'tags',
+    'iteration',
+    'estimate',
+    'dueDate',
+    'parent',
+  ] as const;
+  const TABLE_FIELDS = [
+    'key',
+    'type',
+    'priority',
+    'assignee',
+    'iteration',
+    'area',
+    'estimate',
+    'dueDate',
+    'tags',
+  ] as const;
+  let cardFields = $derived(doc.fields?.card?.length ? doc.fields.card : [...DEFAULT_CARD_FIELDS]);
   let tableFields = $derived(
-    doc.fields?.table?.length ? doc.fields.table : KNOWN_FIELDS.filter((field) => doc.tasks.some((task) => task[field])),
+    doc.fields?.table?.length
+      ? doc.fields.table
+      : TABLE_FIELDS.filter((field) =>
+          doc.tasks.some((task) => {
+            const value = task[field];
+            return Array.isArray(value) ? value.length > 0 : Boolean(value);
+          }),
+        ),
   );
 
   function addComment(taskId: string, text: string) {

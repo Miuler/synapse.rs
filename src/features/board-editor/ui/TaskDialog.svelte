@@ -4,7 +4,7 @@
   antes, porque el proveedor conserva el original.
 -->
 <script lang="ts">
-  import { SquareCheckBig, Send, Pencil } from 'lucide-svelte';
+  import { ExternalLink, SquareCheckBig, Send, Pencil } from 'lucide-svelte';
   import { ResizableDialog } from '@shared/ui/dialog-resize';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import { t } from '@shared/lib/i18n';
@@ -48,6 +48,28 @@
   }: Props = $props();
   let history = $derived(file?.activity.filter((entry) => entry.kind === 'history') ?? []);
   let column = $derived(columns.find((c) => c.id === task.status));
+  let remoteDetails = $derived(
+    (
+      [
+        ['priority', task.priority],
+        ['severity', task.severity],
+        ['estimate', task.estimate],
+        ['iteration', task.iteration],
+        ['area', task.area],
+        ['parent', task.parent],
+        ['dueDate', task.dueDate],
+        ['reason', task.reason],
+        ['boardColumn', task.boardColumn],
+        ['boardLane', task.boardLane],
+        ['originalEstimate', task.originalEstimate],
+        ['remainingWork', task.remainingWork],
+        ['completedWork', task.completedWork],
+        ['createdBy', task.createdBy],
+        ['createdAt', task.createdAt?.replace('T', ' ').slice(0, 19)],
+        ['changedBy', task.changedBy],
+      ] as const
+    ).filter(([, value]) => Boolean(value)),
+  );
   /** Los valores que ya usa el tablero, como sugerencias. */
   const used = (key: 'type' | 'assignee') => [...new Set(tasks.flatMap((other) => other[key] ?? []))].sort();
   let draft = $state('');
@@ -223,6 +245,12 @@
             </button>
           {/if}
         {/if}
+        {#if file.acceptanceCriteria}
+          <div class="section-title">
+            <h3>{t('board.detail.acceptanceCriteria')}</h3>
+          </div>
+          <div class="description">{file.acceptanceCriteria}</div>
+        {/if}
       {/if}
       {#if failed && !editing}<p class="editor-error" role="alert">{failed}</p>{/if}
 
@@ -315,7 +343,16 @@
       <dl class="details">
         {#if task.key}
           <dt>{t('board.detail.key')}</dt>
-          <dd class="detail-key">{task.key}</dd>
+          <dd class="detail-key">
+            {#if task.url}
+              <a class="detail-link-ext" href={task.url} target="_blank" rel="noopener noreferrer" title={t('board.openInProvider')}>
+                <span>{task.key}</span>
+                <ExternalLink size={11} />
+              </a>
+            {:else}
+              {task.key}
+            {/if}
+          </dd>
         {/if}
         {#if folder}
           {#each ['type', 'assignee'] as const as key (key)}
@@ -391,6 +428,18 @@
             #{link.id}
             <span class="detail-note">{t('board.detail.syncedState', { state: link.state })}</span>
             {#if link.outside}<span class="detail-note detail-outside">{t('issues.outside')}</span>{/if}
+          </dd>
+        {/if}
+        {#each remoteDetails as [field, value] (field)}
+          <dt>{t(`board.${field}`)}</dt>
+          <dd class="detail-remote">{value}</dd>
+        {/each}
+        {#if task.tags?.length}
+          <dt>{t('board.tags')}</dt>
+          <dd class="detail-tags">
+            {#each task.tags as tag (tag)}
+              <span class="detail-tag">{tag}</span>
+            {/each}
           </dd>
         {/if}
       </dl>
@@ -665,6 +714,33 @@
 
   .detail-note {
     display: block;
+    color: var(--text-secondary);
+  }
+
+  .detail-link-ext {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .detail-link-ext:hover {
+    text-decoration: underline;
+  }
+
+  .detail-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .detail-tag {
+    font-size: 11px;
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
     color: var(--text-secondary);
   }
 

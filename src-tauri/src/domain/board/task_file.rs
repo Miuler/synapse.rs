@@ -76,6 +76,23 @@ pub struct TaskFile {
     pub assignee: Option<String>,
     pub key: Option<String>,
     pub url: Option<String>,
+    pub tags: Vec<String>,
+    pub priority: Option<String>,
+    pub severity: Option<String>,
+    pub iteration: Option<String>,
+    pub area: Option<String>,
+    pub parent: Option<String>,
+    pub estimate: Option<String>,
+    pub due_date: Option<String>,
+    pub reason: Option<String>,
+    pub created_by: Option<String>,
+    pub created_at: Option<String>,
+    pub changed_by: Option<String>,
+    pub original_estimate: Option<String>,
+    pub remaining_work: Option<String>,
+    pub completed_work: Option<String>,
+    pub board_column: Option<String>,
+    pub board_lane: Option<String>,
     pub start: String,
     /// Días.
     pub duration: u32,
@@ -86,6 +103,8 @@ pub struct TaskFile {
     pub extra: Vec<(String, String)>,
     /// Markdown.
     pub description: String,
+    /// Markdown.
+    pub acceptance_criteria: String,
     pub activity: Vec<ActivityEntry>,
     /// Texto antes de la primera sección que no es un dato.
     pub preamble: String,
@@ -102,6 +121,23 @@ impl Default for TaskFile {
             assignee: None,
             key: None,
             url: None,
+            tags: Vec::new(),
+            priority: None,
+            severity: None,
+            iteration: None,
+            area: None,
+            parent: None,
+            estimate: None,
+            due_date: None,
+            reason: None,
+            created_by: None,
+            created_at: None,
+            changed_by: None,
+            original_estimate: None,
+            remaining_work: None,
+            completed_work: None,
+            board_column: None,
+            board_lane: None,
             start: String::new(),
             duration: 1,
             depends_on: "-".into(),
@@ -109,6 +145,7 @@ impl Default for TaskFile {
             sync: None,
             extra: Vec::new(),
             description: String::new(),
+            acceptance_criteria: String::new(),
             activity: Vec::new(),
             preamble: String::new(),
             sections: String::new(),
@@ -245,6 +282,30 @@ pub fn parse(content: &str) -> Result<TaskFile, BoardError> {
                 "assignee" => task.assignee = text(),
                 "key" => task.key = text(),
                 "url" => task.url = text(),
+                "tags" => {
+                    task.tags = value
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|tag| !tag.is_empty())
+                        .map(str::to_string)
+                        .collect();
+                }
+                "priority" => task.priority = text(),
+                "severity" => task.severity = text(),
+                "iteration" => task.iteration = text(),
+                "area" => task.area = text(),
+                "parent" => task.parent = text(),
+                "estimate" => task.estimate = text(),
+                "due" => task.due_date = text(),
+                "reason" => task.reason = text(),
+                "created_by" => task.created_by = text(),
+                "created_at" => task.created_at = text(),
+                "changed_by" => task.changed_by = text(),
+                "original_estimate" => task.original_estimate = text(),
+                "remaining_work" => task.remaining_work = text(),
+                "completed_work" => task.completed_work = text(),
+                "board_column" => task.board_column = text(),
+                "board_lane" => task.board_lane = text(),
                 "start" => task.start = value.to_string(),
                 "duration" => task.duration = number('d').unwrap_or(1).max(1),
                 "depends" => task.depends_on = text().unwrap_or_else(|| "-".into()),
@@ -273,6 +334,7 @@ pub fn parse(content: &str) -> Result<TaskFile, BoardError> {
         let body = &lines[start + 1..end];
         match lines[start].trim_end() {
             "## Description" => task.description = parse_description(body),
+            "## Acceptance Criteria" => task.acceptance_criteria = parse_description(body),
             "## Activity" => task.activity = parse_activity(body),
             _ => sections.push(lines[start..end].join("\n").trim_end().to_string()),
         }
@@ -280,6 +342,24 @@ pub fn parse(content: &str) -> Result<TaskFile, BoardError> {
     }
     task.sections = sections.join("\n\n");
     Ok(task)
+}
+
+fn quote_section(heading: &str, raw: &str) -> Option<String> {
+    let text = raw.replace("\r\n", "\n");
+    if text.is_empty() {
+        return None;
+    }
+    let quoted: Vec<String> = text
+        .split('\n')
+        .map(|line| {
+            if line.is_empty() {
+                ">".to_string()
+            } else {
+                format!("> {line}")
+            }
+        })
+        .collect();
+    Some(format!("{heading}\n\n{}", quoted.join("\n")))
 }
 
 pub fn serialize(task: &TaskFile) -> String {
@@ -297,9 +377,36 @@ pub fn serialize(task: &TaskFile) -> String {
         ("assignee", &task.assignee),
         ("key", &task.key),
         ("url", &task.url),
+        ("priority", &task.priority),
+        ("severity", &task.severity),
+        ("iteration", &task.iteration),
+        ("area", &task.area),
+        ("parent", &task.parent),
+        ("estimate", &task.estimate),
+        ("due", &task.due_date),
+        ("reason", &task.reason),
+        ("created_by", &task.created_by),
+        ("created_at", &task.created_at),
+        ("changed_by", &task.changed_by),
+        ("original_estimate", &task.original_estimate),
+        ("remaining_work", &task.remaining_work),
+        ("completed_work", &task.completed_work),
+        ("board_column", &task.board_column),
+        ("board_lane", &task.board_lane),
     ] {
         if let Some(value) = value {
             add(key, value);
+        }
+    }
+    if !task.tags.is_empty() {
+        let joined: Vec<String> = task
+            .tags
+            .iter()
+            .map(|tag| one_line(tag))
+            .filter(|tag| !tag.is_empty())
+            .collect();
+        if !joined.is_empty() {
+            add("tags", &joined.join(", "));
         }
     }
     add("start", &task.start);
@@ -319,19 +426,11 @@ pub fn serialize(task: &TaskFile) -> String {
     if !task.preamble.is_empty() {
         blocks.push(task.preamble.clone());
     }
-    let description = task.description.replace("\r\n", "\n");
-    if !description.is_empty() {
-        let quoted: Vec<String> = description
-            .split('\n')
-            .map(|line| {
-                if line.is_empty() {
-                    ">".to_string()
-                } else {
-                    format!("> {line}")
-                }
-            })
-            .collect();
-        blocks.push(format!("## Description\n\n{}", quoted.join("\n")));
+    if let Some(block) = quote_section("## Description", &task.description) {
+        blocks.push(block);
+    }
+    if let Some(block) = quote_section("## Acceptance Criteria", &task.acceptance_criteria) {
+        blocks.push(block);
     }
     if !task.activity.is_empty() {
         let entries: Vec<String> = task
@@ -410,6 +509,23 @@ mod tests {
             assignee: Some("Ana".into()),
             key: Some("AB#123".into()),
             url: Some("https://ejemplo.test/a#b".into()),
+            tags: vec!["backend".into(), "urgente".into()],
+            priority: Some("2".into()),
+            severity: Some("2 - High".into()),
+            iteration: Some("Proyecto\\Sprint 1".into()),
+            area: Some("Proyecto\\API".into()),
+            parent: Some("AB#100".into()),
+            estimate: Some("5".into()),
+            due_date: Some("2026-01-15".into()),
+            reason: Some("Started".into()),
+            created_by: Some("Luis".into()),
+            created_at: Some("2026-01-01T08:00:00".into()),
+            changed_by: Some("Ana".into()),
+            original_estimate: Some("8".into()),
+            remaining_work: Some("4".into()),
+            completed_work: Some("4".into()),
+            board_column: Some("Doing".into()),
+            board_lane: Some("Expedite".into()),
             start: "2026-01-02".into(),
             duration: 3,
             depends_on: "t1".into(),
@@ -429,6 +545,7 @@ mod tests {
             }),
             extra: vec![("Prioridad".into(), "alta: ya".into()), ("equipo".into(), "".into())],
             description: "  con sangría\n\n# Encabezado\n## Description\n---\n> cita\n> > anidada\n```\n- `x` comment\n```".into(),
+            acceptance_criteria: "- [ ] Pasa pruebas\n- [ ] Sin errores".into(),
             activity: vec![
                 synced,
                 entry(EntryKind::Comment, None, "Primera\n\n- no es otra entrada\n- `tampoco` comment\n## ni una sección\n\n  sangrada"),

@@ -23,6 +23,23 @@ interface TaskData {
   assignee: string | null;
   key: string | null;
   url: string | null;
+  tags: string[];
+  priority: string | null;
+  severity: string | null;
+  iteration: string | null;
+  area: string | null;
+  parent: string | null;
+  estimate: string | null;
+  dueDate: string | null;
+  reason: string | null;
+  createdBy: string | null;
+  createdAt: string | null;
+  changedBy: string | null;
+  originalEstimate: string | null;
+  remainingWork: string | null;
+  completedWork: string | null;
+  boardColumn: string | null;
+  boardLane: string | null;
   start: string;
   duration: number;
   dependsOn: string;
@@ -35,6 +52,7 @@ export type TaskCard = TaskData & { id: string; hash: string; comments: Activity
 
 export type TaskFile = TaskData & {
   description: string;
+  acceptanceCriteria: string;
   activity: ActivityEntry[];
   preamble: string;
   sections: string;
@@ -74,7 +92,28 @@ export function isFolderBoard(content: string): boolean {
 
 const VIEWS: BoardViewMode[] = ['table', 'kanban', 'gantt'];
 /** Los datos de una tarea que el documento puede no tener. */
-const OPTIONAL = ['type', 'assignee', 'key', 'url'] as const;
+const OPTIONAL = [
+  'type',
+  'assignee',
+  'key',
+  'url',
+  'priority',
+  'severity',
+  'iteration',
+  'area',
+  'parent',
+  'estimate',
+  'dueDate',
+  'reason',
+  'createdBy',
+  'createdAt',
+  'changedBy',
+  'originalEstimate',
+  'remainingWork',
+  'completedWork',
+  'boardColumn',
+  'boardLane',
+] as const;
 const REQUIRED = ['title', 'status', 'start', 'duration', 'dependsOn', 'progress'] as const;
 
 export function folderDocument({ board, tasks }: BoardSnapshot): BoardDocument {
@@ -101,6 +140,7 @@ export function folderDocument({ board, tasks }: BoardSnapshot): BoardDocument {
       })),
     };
     for (const key of OPTIONAL) if (card[key]) task[key] = card[key]!;
+    if (card.tags?.length) task.tags = card.tags;
     return task;
   });
   const defaultView = VIEWS.find((view) => view === board.defaultView) ?? 'kanban';
@@ -161,6 +201,23 @@ const emptyTask = (): TaskFile => ({
   assignee: null,
   key: null,
   url: null,
+  tags: [],
+  priority: null,
+  severity: null,
+  iteration: null,
+  area: null,
+  parent: null,
+  estimate: null,
+  dueDate: null,
+  reason: null,
+  createdBy: null,
+  createdAt: null,
+  changedBy: null,
+  originalEstimate: null,
+  remainingWork: null,
+  completedWork: null,
+  boardColumn: null,
+  boardLane: null,
   start: '',
   duration: 1,
   dependsOn: '-',
@@ -168,6 +225,7 @@ const emptyTask = (): TaskFile => ({
   sync: null,
   extra: [],
   description: '',
+  acceptanceCriteria: '',
   activity: [],
   preamble: '',
   sections: '',
@@ -186,6 +244,7 @@ export function applyTask(
   const changed = (key: keyof BoardTask) => !before || !same(before.task[key], after.task[key]);
   for (const key of REQUIRED) if (changed(key)) Object.assign(next, { [key]: after.task[key] });
   for (const key of OPTIONAL) if (changed(key)) next[key] = after.task[key] ?? null;
+  if (changed('tags')) next.tags = after.task.tags ?? [];
   const key = (c: BoardTask['comments'][number]) => `${c.timestamp}\n${c.text}`;
   const known = new Map((before?.task.comments ?? []).map((c) => [key(c), c]));
   const added = after.task.comments.filter((c) => !known.has(key(c)));
@@ -209,6 +268,7 @@ export function applyTask(
     next.activity = mergeActivity(next.activity, incoming.entries, after.link?.sent);
     // Solo si la de aquí sigue siendo la que se iba a sustituir
     if (incoming.description !== undefined && fingerprint(next.description) === incoming.over) next.description = incoming.description;
+    if (incoming.acceptanceCriteria !== undefined) next.acceptanceCriteria = incoming.acceptanceCriteria;
   }
   if (!before || !same(before.link, after.link)) next.sync = after.link ? { rev: next.sync?.rev, ...after.link } : null;
   return next;

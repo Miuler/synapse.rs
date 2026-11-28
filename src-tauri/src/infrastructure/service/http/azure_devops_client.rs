@@ -32,6 +32,7 @@ const API: &str = "api-version=7.1";
 const DESCRIPTION: &str = "System.Description";
 /// El texto principal de un error (Bug).
 const REPRO_STEPS: &str = "Microsoft.VSTS.TCM.ReproSteps";
+const ACCEPTANCE_CRITERIA: &str = "Microsoft.VSTS.Common.AcceptanceCriteria";
 /// Los cambios del histórico que se guardan; el resto son contadores y fechas internas.
 const HISTORY_FIELDS: [&str; 11] = [
     "System.WorkItemType",
@@ -50,17 +51,6 @@ const HISTORY_FIELDS: [&str; 11] = [
 const PAGE: usize = 200;
 /// Tope de páginas de una tarea: ningún servidor puede dejar pidiendo sin fin.
 const MAX_PAGES: usize = 50;
-/// Los campos de un work item que entran en el modelo común.
-const FIELDS: [&str; 8] = [
-    "System.Title",
-    "System.State",
-    "System.WorkItemType",
-    "System.AssignedTo",
-    "System.ChangedDate",
-    DESCRIPTION,
-    REPRO_STEPS,
-    COMMENT_COUNT,
-];
 /// Cuántos comentarios tiene: delata uno nuevo aunque no cambie la revisión.
 const COMMENT_COUNT: &str = "System.CommentCount";
 /// Lo abierto en el proyecto y relacionado con quien sincroniza.
@@ -460,11 +450,80 @@ fn interpret(status: u16, text: &str) -> Result<Value, IssueError> {
 
 /// Una identidad llega como objeto o, en algunas respuestas, como texto; sin asignar, el campo falta.
 fn person(value: &Value) -> Option<Person> {
-    let name = value["displayName"].as_str().or_else(|| value.as_str())?;
+    let display = value["displayName"]
+        .as_str()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let unique = value["uniqueName"]
+        .as_str()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let raw = value
+        .as_str()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let name = display.or(unique).or(raw)?;
     Some(Person {
         name: name.to_string(),
-        id: value["uniqueName"].as_str().unwrap_or_default().to_string(),
+        id: unique.unwrap_or_default().to_string(),
     })
+}
+
+fn non_empty_field(fields: &Value, name: &str) -> Option<String> {
+    fields[name]
+        .as_str()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
+fn number_str(value: &Value) -> Option<String> {
+    if let Some(n) = value.as_u64() {
+        Some(n.to_string())
+    } else if let Some(n) = value.as_i64() {
+        Some(n.to_string())
+    } else if let Some(n) = value.as_f64() {
+        if n.fract() == 0.0 {
+            Some(format!("{n:.0}"))
+        } else {
+            Some(n.to_string())
+        }
+    } else {
+        value
+            .as_str()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    }
+}
+
+fn date_str(fields: &Value, names: &[&str]) -> Option<String> {
+    names.iter().find_map(|name| {
+        let raw = fields[*name].as_str()?.trim();
+        let date = raw.get(..10)?;
+        let bytes = date.as_bytes();
+        (bytes.len() == 10
+            && bytes[4] == b'-'
+            && bytes[7] == b'-'
+            && bytes
+                .iter()
+                .enumerate()
+                .all(|(i, b)| i == 4 || i == 7 || b.is_ascii_digit()))
+        .then(|| date.to_string())
+    })
+}
+
+fn tags(fields: &Value) -> Vec<String> {
+    fields["System.Tags"]
+        .as_str()
+        .map(|raw| {
+            raw.split(';')
+                .map(str::trim)
+                .filter(|t| !t.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// La categoría que declara Azure DevOps. «Resolved» sigue en curso hasta que se cierra; una que no
@@ -480,15 +539,28 @@ fn category(declared: &str, name: &str) -> StateCategory {
     }
 }
 
-fn issue(value: &Value) -> Option<Issue> {
-    let field = |name: &str| value["fields"][name].as_str().unwrap_or_default().to_string();
+fn issue(value: &Value, project: Option<&Project>) -> Option<Issue> {
+    let fields = &value["fields"];
+    let field = |name: &str| fields[name].as_str().unwrap_or_default().to_string();
     let id = value["id"].as_u64()?;
     let state = field("System.State");
-    let assignee = person(&value["fields"]["System.AssignedTo"]);
+    let url = value["_links"]["html"]["href"]
+        .as_str()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .or_else(|| project.map(|p| format!("{}/{}/_workitems/edit/{id}", p.collection, p.name)));
+    let estimate = [
+        "Microsoft.VSTS.Scheduling.StoryPoints",
+        "Microsoft.VSTS.Scheduling.Effort",
+        "Microsoft.VSTS.Scheduling.Size",
+    ]
+    .iter()
+    .find_map(|name| number_str(&fields[*name]));
     Some(Issue {
         id: id.to_string(),
         key: format!("AB#{id}"),
-        url: None,
+        url,
         issue_type: field("System.WorkItemType"),
         title: field("System.Title"),
         description: description(value),
@@ -496,9 +568,28 @@ fn issue(value: &Value) -> Option<Issue> {
             category: StateCategory::from_name(&state),
             name: state,
         },
-        assignee,
-        labels: Vec::new(),
-        updated_at: Some(field("System.ChangedDate")).filter(|d| !d.is_empty()),
+        assignee: person(&fields["System.AssignedTo"]),
+        labels: tags(fields),
+        updated_at: non_empty_field(fields, "System.ChangedDate"),
+        priority: number_str(&fields["Microsoft.VSTS.Common.Priority"]),
+        severity: non_empty_field(fields, "Microsoft.VSTS.Common.Severity"),
+        iteration: non_empty_field(fields, "System.IterationPath"),
+        area: non_empty_field(fields, "System.AreaPath"),
+        parent: fields["System.Parent"].as_u64().map(|p| format!("AB#{p}")),
+        estimate,
+        due_date: date_str(
+            fields,
+            &[
+                "Microsoft.VSTS.Scheduling.TargetDate",
+                "Microsoft.VSTS.Scheduling.DueDate",
+            ],
+        ),
+        start_date: date_str(fields, &["Microsoft.VSTS.Scheduling.StartDate"]),
+        created_at: non_empty_field(fields, "System.CreatedDate").map(|d| instant(&d)),
+        created_by: person(&fields["System.CreatedBy"]),
+        changed_by: person(&fields["System.ChangedBy"]),
+        reason: non_empty_field(fields, "System.Reason"),
+        acceptance_criteria: acceptance_criteria(value),
         revision: Some(value["rev"].as_u64()?.to_string()),
         extra: extra(value),
     })
@@ -524,6 +615,12 @@ fn description(value: &Value) -> Option<String> {
     })
 }
 
+fn acceptance_criteria(value: &Value) -> Option<String> {
+    let text = value["fields"][ACCEPTANCE_CRITERIA].as_str()?;
+    let format = value["multilineFieldsFormat"][ACCEPTANCE_CRITERIA].as_str();
+    Some(html_markdown::from_text(text, format)).filter(|t| !t.is_empty())
+}
+
 /// El campo del que sale la descripción de un work item; sin texto en ninguno, el de su tipo.
 fn text_field(value: &Value) -> &'static str {
     let order = text_fields(value);
@@ -543,20 +640,36 @@ fn is_markdown(value: &Value, field: &str) -> bool {
         .is_some_and(|f| f.eq_ignore_ascii_case("markdown"))
 }
 
-/// Lo que no cabe en el modelo común: cuántos comentarios tiene y si su descripción perdería
-/// formato al reescribirla.
+/// Lo que no cabe en el modelo común: comentarios, pérdida de formato y campos de planificación/tablero.
 fn extra(value: &Value) -> BTreeMap<String, String> {
     let mut extra = BTreeMap::new();
-    if let Some(count) = value["fields"][COMMENT_COUNT].as_u64() {
+    let fields = &value["fields"];
+    if let Some(count) = fields[COMMENT_COUNT].as_u64() {
         extra.insert("comment_count".to_string(), count.to_string());
     }
     let field = text_field(value);
     if !is_markdown(value, field)
-        && value["fields"][field]
+        && fields[field]
             .as_str()
             .is_some_and(html_markdown::loses_format)
     {
         extra.insert("description_lossy".to_string(), "true".to_string());
+    }
+    for (key, field_name, numeric) in [
+        ("original_estimate", "Microsoft.VSTS.Scheduling.OriginalEstimate", true),
+        ("remaining_work", "Microsoft.VSTS.Scheduling.RemainingWork", true),
+        ("completed_work", "Microsoft.VSTS.Scheduling.CompletedWork", true),
+        ("board_column", "System.BoardColumn", false),
+        ("board_lane", "System.BoardLane", false),
+    ] {
+        let parsed = if numeric {
+            number_str(&fields[field_name])
+        } else {
+            non_empty_field(fields, field_name)
+        };
+        if let Some(val) = parsed {
+            extra.insert(key.to_string(), val);
+        }
     }
     extra
 }
@@ -650,8 +763,8 @@ fn history_entry(value: &Value) -> Option<IssueEntry> {
     })
 }
 
-fn expect_issue(value: &Value) -> Result<Issue, IssueError> {
-    issue(value).ok_or_else(|| IssueError::new(Kind::Request, "response without work item"))
+fn expect_issue(value: &Value, project: Option<&Project>) -> Result<Issue, IssueError> {
+    issue(value, project).ok_or_else(|| IssueError::new(Kind::Request, "response without work item"))
 }
 
 /// Los ids de Azure DevOps son números; cualquier otra cosa no es un work item suyo.
@@ -734,7 +847,7 @@ impl AzureDevOpsClient {
             .send(Method::POST, &url, Some(("application/json", body)))
             .await?;
         let item =
-            issue(&response["value"][0]).ok_or_else(|| IssueError::new(Kind::NotFound, id.to_string()))?;
+            issue(&response["value"][0], None).ok_or_else(|| IssueError::new(Kind::NotFound, id.to_string()))?;
         let states = self.type_states(project, new_type).await?;
         let mut found = states.iter().find(|s| s.name == item.state.name);
         if found.is_none() {
@@ -1088,7 +1201,6 @@ impl IssueProvider for AzureDevOpsClient {
             for chunk in ids.chunks(BATCH) {
                 let body = json!({
                     "ids": chunk,
-                    "fields": FIELDS,
                     "errorPolicy": "Omit",
                 });
                 let response = self
@@ -1096,7 +1208,7 @@ impl IssueProvider for AzureDevOpsClient {
                     .await?;
                 // Con `Omit`, los que no se pueden leer faltan o llegan como `null`
                 if let Some(items) = response["value"].as_array() {
-                    found.extend(items.iter().filter_map(issue));
+                    found.extend(items.iter().filter_map(|item| issue(item, Some(&project))));
                 }
             }
             self.declare_categories(&project, &mut found).await;
@@ -1143,7 +1255,7 @@ impl IssueProvider for AzureDevOpsClient {
                 patch.push(self.description_patch(&project, id, markdown).await?);
             }
             let body = ("application/json-patch+json", Value::Array(patch));
-            expect_issue(&self.send(Method::PATCH, &url, Some(body)).await?)
+            expect_issue(&self.send(Method::PATCH, &url, Some(body)).await?, Some(&project))
         })
     }
 
@@ -1160,7 +1272,8 @@ impl IssueProvider for AzureDevOpsClient {
 
     fn create<'a>(&'a self, scope: &'a str, new: &'a NewIssue) -> ProviderFuture<'a, Issue> {
         Box::pin(async move {
-            let base = self.project(scope)?.url("workitems");
+            let project = self.project(scope)?;
+            let base = project.url("workitems");
             let mut url =
                 Url::parse(&base).map_err(|_| IssueError::new(Kind::InvalidUrl, scope))?;
             if let Ok(mut path) = url.path_segments_mut() {
@@ -1182,7 +1295,7 @@ impl IssueProvider for AzureDevOpsClient {
                 patch.push(set_field(field, &html_markdown::to_html(markdown)));
             }
             let body = ("application/json-patch+json", Value::Array(patch));
-            expect_issue(&self.send(Method::POST, url.as_str(), Some(body)).await?)
+            expect_issue(&self.send(Method::POST, url.as_str(), Some(body)).await?, Some(&project))
         })
     }
 
@@ -1600,21 +1713,69 @@ mod tests {
 
     #[test]
     fn traduce_un_work_item_al_modelo_comun() {
+        let project = Project {
+            collection: "https://dev.azure.com/org".into(),
+            name: "Proyecto".into(),
+        };
         let value = json!({"id": 7, "rev": 4, "fields": {
             "System.Title": "Publicar", "System.State": "In Progress", "System.WorkItemType": "Bug",
             "System.AssignedTo": {"displayName": "Ana", "uniqueName": "ana@ejemplo.test"},
             "System.ChangedDate": "2026-01-02T03:04:05Z",
+            "System.Tags": "backend; urgente ; ",
+            "Microsoft.VSTS.Common.Priority": 1,
+            "Microsoft.VSTS.Common.Severity": "2 - High",
+            "System.IterationPath": "Proyecto\\Sprint 4",
+            "System.AreaPath": "Proyecto\\Core",
+            "System.Parent": 42,
+            "Microsoft.VSTS.Scheduling.StoryPoints": 5.0,
+            "Microsoft.VSTS.Scheduling.TargetDate": "2026-01-20T00:00:00Z",
+            "Microsoft.VSTS.Scheduling.StartDate": "2026-01-05T00:00:00Z",
+            "System.CreatedDate": "2026-01-01T08:00:00Z",
+            "System.CreatedBy": {"displayName": "Luis", "uniqueName": "luis@ejemplo.test"},
+            "System.ChangedBy": {"displayName": "", "uniqueName": "ana@ejemplo.test"},
+            "System.Reason": "Approved",
+            "Microsoft.VSTS.Common.AcceptanceCriteria": "<ul><li>Pasa pruebas</li></ul>",
+            "Microsoft.VSTS.Scheduling.OriginalEstimate": 10.5,
+            "Microsoft.VSTS.Scheduling.RemainingWork": 4,
+            "Microsoft.VSTS.Scheduling.CompletedWork": 6.5,
+            "System.BoardColumn": "Doing",
+            "System.BoardLane": "Expedite",
         }});
-        let found = issue(&value).unwrap();
+        let found = issue(&value, Some(&project)).unwrap();
         assert_eq!((found.id.as_str(), found.key.as_str()), ("7", "AB#7"));
+        assert_eq!(
+            found.url.as_deref(),
+            Some("https://dev.azure.com/org/Proyecto/_workitems/edit/7")
+        );
         assert_eq!(found.issue_type, "Bug");
         assert_eq!(found.state.category, StateCategory::Doing);
         assert_eq!(found.assignee.unwrap().name, "Ana");
         assert_eq!(found.updated_at.as_deref(), Some("2026-01-02T03:04:05Z"));
+        assert_eq!(found.labels, ["backend", "urgente"]);
+        assert_eq!(found.priority.as_deref(), Some("1"));
+        assert_eq!(found.severity.as_deref(), Some("2 - High"));
+        assert_eq!(found.iteration.as_deref(), Some("Proyecto\\Sprint 4"));
+        assert_eq!(found.area.as_deref(), Some("Proyecto\\Core"));
+        assert_eq!(found.parent.as_deref(), Some("AB#42"));
+        assert_eq!(found.estimate.as_deref(), Some("5"));
+        assert_eq!(found.due_date.as_deref(), Some("2026-01-20"));
+        assert_eq!(found.start_date.as_deref(), Some("2026-01-05"));
+        assert_eq!(found.created_at.as_deref(), Some("2026-01-01T08:00:00"));
+        assert_eq!(found.created_by.as_ref().unwrap().name, "Luis");
+        assert_eq!(found.changed_by.as_ref().unwrap().name, "ana@ejemplo.test");
+        assert_eq!(found.reason.as_deref(), Some("Approved"));
+        assert_eq!(found.acceptance_criteria.as_deref(), Some("- Pasa pruebas"));
+        assert_eq!(found.extra.get("original_estimate").map(String::as_str), Some("10.5"));
+        assert_eq!(found.extra.get("remaining_work").map(String::as_str), Some("4"));
+        assert_eq!(found.extra.get("completed_work").map(String::as_str), Some("6.5"));
+        assert_eq!(found.extra.get("board_column").map(String::as_str), Some("Doing"));
+        assert_eq!(found.extra.get("board_lane").map(String::as_str), Some("Expedite"));
         // Sin asignar ni fecha
-        let bare = issue(&json!({"id": 8, "rev": 1, "fields": {}})).unwrap();
-        assert_eq!((bare.assignee, bare.updated_at), (None, None));
+        let bare = issue(&json!({"id": 8, "rev": 1, "fields": {}}), None).unwrap();
+        assert_eq!((bare.assignee, bare.updated_at, bare.url), (None, None, None));
         assert_eq!(person(&json!("Ana")).unwrap().name, "Ana");
+        assert_eq!(person(&json!({"displayName": " ", "uniqueName": "u@test"})).unwrap().name, "u@test");
+        assert_eq!(person(&json!({"displayName": ""})), None);
     }
 
     /// Como `serve`, para varias peticiones seguidas: responde cada cuerpo JSON en orden.
@@ -1679,6 +1840,7 @@ mod tests {
             .unwrap();
         assert_eq!(found[0].state.category, StateCategory::Doing);
         let requests = requests.join().unwrap();
+        assert!(!requests[0].contains("\"fields\""), "{}", requests[0]);
         assert!(requests[1].starts_with(
             "GET /org/Proyecto/_apis/wit/workitemtypes/Mi%20tipo/states?api-version=7.1 "
         ));
@@ -1791,14 +1953,14 @@ mod tests {
             if !extra.is_null() {
                 value["multilineFieldsFormat"] = extra;
             }
-            issue(&value).unwrap().description.unwrap()
+            issue(&value, None).unwrap().description.unwrap()
         };
         assert_eq!(item("Task", Value::Null), "la **descripción**");
         assert_eq!(item("Bug", Value::Null), "1. paso");
         let markdown = json!({"System.Description": "markdown"});
         assert_eq!(item("Task", markdown), "&lt;div>la &lt;b>descripción&lt;/b>&lt;/div>");
         let empty = json!({"id": 1, "rev": 1, "fields": {"System.Description": "<div><br></div>"}});
-        assert_eq!(issue(&empty).unwrap().description, None);
+        assert_eq!(issue(&empty, None).unwrap().description, None);
     }
 
     #[tokio::test]
