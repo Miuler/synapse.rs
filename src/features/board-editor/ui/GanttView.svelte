@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '@shared/lib/i18n';
   import type { BoardTask } from '../model/board.svelte';
 
   interface Props {
@@ -75,7 +76,7 @@
 
 <div class="gantt-view">
   <div class="gantt-sidebar">
-    <div class="gantt-header-cell">Tarea</div>
+    <div class="gantt-header-cell">{t('board.columns.task')}</div>
     {#each tasks as task (task.id)}
       <!-- Doble clic, como en las otras vistas; con el teclado, `detail` es 0 -->
       <button

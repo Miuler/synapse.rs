@@ -25,7 +25,7 @@
     type TaskFile,
   } from '../model/folder-board';
   import { FolderBoard } from '../model/folder-board-store.svelte';
-  import { DEFAULT_COLUMNS, type BoardDocument } from '../model/board.svelte';
+  import { defaultColumns, type BoardDocument } from '../model/board.svelte';
   import TableView from './TableView.svelte';
   import KanbanView from './KanbanView.svelte';
   import GanttView from './GanttView.svelte';
@@ -53,7 +53,7 @@
   // Un tablero de carpeta (`format: 2`) tiene sus tareas en archivos; los demás, en la tabla del contenido
   let folder = $derived(isFolderBoard(content));
   let store = $state.raw<FolderBoard | null>(null);
-  const loading: BoardDocument = { defaultView: 'kanban', columns: DEFAULT_COLUMNS, tasks: [] };
+  const loading: BoardDocument = { defaultView: 'kanban', columns: defaultColumns(), tasks: [] };
   let doc = $derived(folder ? (store?.doc ?? loading) : parseBoardMarkdown(content));
 
   $effect(() => {
@@ -211,7 +211,7 @@
     }
     const newTask: BoardTask = {
       id,
-      title: 'Nueva tarea',
+      title: t('board.newTask'),
       status: status ?? doc.columns[0]?.id ?? 'todo',
       start: new Date().toISOString().slice(0, 10),
       duration: 2,
@@ -265,21 +265,21 @@
         class:active={currentView === 'table'}
         onclick={() => (activeView = 'table')}
       >
-        <Table size={14} /> Tabla
+        <Table size={14} /> {t('board.views.table')}
       </button>
       <button
         type="button"
         class:active={currentView === 'kanban'}
         onclick={() => (activeView = 'kanban')}
       >
-        <Kanban size={14} /> Kanban
+        <Kanban size={14} /> {t('board.views.kanban')}
       </button>
       <button
         type="button"
         class:active={currentView === 'gantt'}
         onclick={() => (activeView = 'gantt')}
       >
-        <GanttChartSquare size={14} /> Gantt
+        <GanttChartSquare size={14} /> {t('board.views.gantt')}
       </button>
       <button
         type="button"
@@ -288,7 +288,7 @@
         title={t('board.rawHint')}
         onclick={() => (activeView = 'raw')}
       >
-        <FileCode size={14} /> Raw
+        <FileCode size={14} /> {t('board.views.raw')}
       </button>
     </div>
 

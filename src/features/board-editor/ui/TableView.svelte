@@ -26,13 +26,13 @@
   let headers = $derived<{ key: TaskSortKey; label: string; class?: string }[]>([
     { key: 'id', label: 'ID', class: 'col-id' },
     ...(fields.includes('type') ? [{ key: 'type' as const, label: t('board.type') }] : []),
-    { key: 'title', label: 'Tarea' },
-    { key: 'status', label: 'Estado' },
+    { key: 'title', label: t('board.columns.task') },
+    { key: 'status', label: t('board.columns.status') },
     ...(fields.includes('assignee') ? [{ key: 'assignee' as const, label: t('board.assignee') }] : []),
-    { key: 'start', label: 'Inicio' },
-    { key: 'duration', label: 'Duración (d)', class: 'col-num' },
-    { key: 'dependsOn', label: 'Depende' },
-    { key: 'progress', label: 'Progreso %', class: 'col-num' },
+    { key: 'start', label: t('board.columns.start') },
+    { key: 'duration', label: t('board.columns.duration'), class: 'col-num' },
+    { key: 'dependsOn', label: t('board.columns.dependsOn') },
+    { key: 'progress', label: t('board.columns.progress'), class: 'col-num' },
   ]);
 
   // Se ordena al elegir columna y al añadir o quitar tareas, no mientras se escribe: la fila no salta
@@ -176,7 +176,7 @@
             <button
               type="button"
               class="icon-btn"
-              title="Comentarios ({task.comments.length})"
+              title={t('board.commentsCount', { count: task.comments.length })}
               onclick={() => onSelectComments(task.id)}
             >
               <MessageSquare size={14} />
@@ -187,7 +187,7 @@
             {#if !readOnly}<button
               type="button"
               class="icon-btn danger"
-              title="Eliminar"
+              title={t('board.deleteTask')}
               onclick={() => onDeleteTask(task.id)}
             >
               <Trash2 size={14} />
@@ -200,7 +200,7 @@
 
   {#if !readOnly}
     <button type="button" class="add-row-btn" onclick={onAddTask}>
-      <Plus size={14} /> Añadir tarea
+      <Plus size={14} /> {t('board.addTask')}
     </button>
   {/if}
 </div>

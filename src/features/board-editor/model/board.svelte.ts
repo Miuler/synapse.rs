@@ -1,4 +1,5 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import { t } from '@shared/lib/i18n';
 import type { ActivityEntry } from './folder-board';
 import type { IssueSource } from './issue-sync';
 import { LEGACY_KEY, readLegacySource, writeLegacySource } from './legacy-source';
@@ -62,10 +63,11 @@ export interface BoardDocument {
   extraFrontmatter?: string;
 }
 
-export const DEFAULT_COLUMNS: BoardColumn[] = [
-  { id: 'todo', label: 'Por hacer', color: 'var(--text-muted)' },
-  { id: 'doing', label: 'En progreso', color: 'var(--accent)' },
-  { id: 'done', label: 'Hecho', color: '#22c55e' },
+/** Las columnas habituales, con su nombre en el idioma de la interfaz. */
+export const defaultColumns = (): BoardColumn[] => [
+  { id: 'todo', label: t('board.defaultColumns.todo'), color: 'var(--text-muted)' },
+  { id: 'doing', label: t('board.defaultColumns.doing'), color: 'var(--accent)' },
+  { id: 'done', label: t('board.defaultColumns.done'), color: '#22c55e' },
 ];
 
 const OWN_KEYS = ['type', 'default_view', 'columns'];
@@ -121,7 +123,7 @@ function parseFrontmatter(raw: string): {
 } {
   const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!fmMatch) {
-    return { defaultView: 'kanban', columns: [...DEFAULT_COLUMNS], body: raw };
+    return { defaultView: 'kanban', columns: defaultColumns(), body: raw };
   }
 
   const fmText = fmMatch[1];
@@ -142,7 +144,7 @@ function parseFrontmatter(raw: string): {
 
   return {
     defaultView,
-    columns: columns.length > 0 ? columns : [...DEFAULT_COLUMNS],
+    columns: columns.length > 0 ? columns : defaultColumns(),
     body,
     ...parseOtherKeys(fmText),
   };
@@ -318,7 +320,7 @@ export function sortTasks(tasks: BoardTask[], sort: TaskSort | null, columns: Bo
 
 /** Un tablero nuevo, en el formato de carpeta y sin tareas: cada una tendrá su archivo. */
 export function createDefaultBoardMarkdown(): string {
-  const columns = DEFAULT_COLUMNS.map(
+  const columns = defaultColumns().map(
     (c) => `  - { id: ${JSON.stringify(c.id)}, label: ${JSON.stringify(c.label)}, color: ${JSON.stringify(c.color)} }`,
   );
   return ['---', 'type: board', 'format: 2', 'default_view: kanban', 'columns:', ...columns, '---', '', '## Order', ''].join('\n');

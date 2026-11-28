@@ -6,6 +6,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { Dialog } from 'bits-ui';
+  import { t } from '@shared/lib/i18n';
   import { X } from 'lucide-svelte';
   import DialogResizeHandles from './DialogResizeHandles.svelte';
   import { persistedDialogSize, type DialogSize } from '../lib/dialog-size.svelte';
@@ -98,7 +99,7 @@
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
         class="resizable-dialog-header"
-        title="Arrastra para mover; doble clic para centrar"
+        title={t('common.dialogMoveHint')}
         onpointerdown={(e) => offset.startDrag(e, dialogSize.size)}
         ondblclick={(e) => {
           if (!(e.target as HTMLElement).closest('button, input, select, textarea, a')) offset.reset();
@@ -119,8 +120,8 @@
           class="resizable-dialog-close"
           onclick={requestClose}
           disabled={busy}
-          aria-label="Cerrar diálogo"
-          title="Cerrar (Esc)"
+          aria-label={t('common.closeDialog')}
+          title={t('common.closeEsc')}
         >
           <X size={16} />
         </button>

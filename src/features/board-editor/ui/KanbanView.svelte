@@ -250,7 +250,7 @@
 
       {#if !readOnly}
         <button type="button" class="add-card-btn" onclick={() => onAddTask(col.id)}>
-          <Plus size={13} /> Añadir
+          <Plus size={13} /> {t('board.addCard')}
         </button>
       {/if}
       {#if !readOnly}

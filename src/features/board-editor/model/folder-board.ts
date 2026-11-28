@@ -2,7 +2,7 @@
 // archivo. Rust lee y escribe los archivos; aquí se convierten al documento que usan las vistas y se
 // guarda solo lo que cambió.
 import { fingerprint, mergeActivity } from './activity';
-import { DEFAULT_COLUMNS, type BoardColumn, type BoardDocument, type BoardTask, type BoardViewMode } from './board.svelte';
+import { defaultColumns, type BoardColumn, type BoardDocument, type BoardTask, type BoardViewMode } from './board.svelte';
 import type { IssueLink, IssueSource } from './issue-sync';
 
 export interface ActivityEntry {
@@ -78,7 +78,7 @@ const OPTIONAL = ['type', 'assignee', 'key', 'url'] as const;
 const REQUIRED = ['title', 'status', 'start', 'duration', 'dependsOn', 'progress'] as const;
 
 export function folderDocument({ board, tasks }: BoardSnapshot): BoardDocument {
-  const columns = board.columns.length ? board.columns : [...DEFAULT_COLUMNS];
+  const columns = board.columns.length ? board.columns : defaultColumns();
   const links: Record<string, IssueLink> = {};
   const list = tasks.map((card) => {
     if (card.sync) {

@@ -73,6 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Task boards: with the app in English, the board editor, the task dialog and the frame of resizable dialogs no longer show Spanish text; new boards and tasks get their default names in the interface language.
 - Agent chat: the `@` list no longer stops filtering when two Synapse vaults have the same name.
 - Agent chat: `@` keeps searching after a space, so files and folders with spaces in their names can be found (each word must appear). `Enter` right after a space sends the message; `Tab` picks the suggestion.
 - Explorer: deleted files now show a «D» badge, green when the deletion is staged (so «Git Add» is not offered) and red while it is not; before, they had no badge. A deleted folder whose deletion is fully staged is shown in green instead of red.
