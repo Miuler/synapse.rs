@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-beta.10] - 2026-11-28
+
 ### Added
 
 - Markdown editor: typing `[[#` in wikilink autocomplete now searches across all `.board/` tasks by issue number/ID or title and inserts `[[Board.board/id]]`. Inline task links render as segmented Jira-style pills (`[key] [title] [state]`), with a compact variant (`[[Board.board/id|#]]` or `|compact`) without the title.
@@ -1248,6 +1250,7 @@ No heavy dependencies need to be installed; just download and run:
 > [!NOTE]
 > This is an **Alpha** version. If you find any unexpected behavior or have suggestions, you are welcome to open an issue in the repository.
 
+[1.0.0-beta.10]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.10
 [1.0.0-beta.9]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.9
 [1.0.0-beta.8]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.8
 [1.0.0-beta.7]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.7

@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+## [1.0.0-beta.10] - 2026-11-28
+
 ### Añadido
 
 - Editor Markdown: escribir `[[#` en el autocompletado de wikilinks ahora busca entre todas las tareas de los tableros `.board/` por número/ID o título e inserta `[[Tablero.board/id]]`. Los enlaces inline a tareas se muestran como insignias segmentadas al estilo Jira (`[clave] [título] [estado]`), con variante compacta (`[[Tablero.board/id|#]]` o `|compact`) sin título.
@@ -1248,6 +1250,7 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
+[1.0.0-beta.10]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.10
 [1.0.0-beta.9]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.9
 [1.0.0-beta.8]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.8
 [1.0.0-beta.7]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.7
