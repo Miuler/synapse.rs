@@ -13,7 +13,7 @@ use tauri::State;
 pub fn delete_vault_item(state: State<'_, AppState>, relative_path: String) -> Result<(), String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
 
     state
@@ -41,7 +41,7 @@ pub fn rename_vault_item(
         let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
         match *guard {
             Some(ref path) => path.clone(),
-            None => return Err("No hay ninguna bóveda abierta".to_string()),
+            None => return Err("no vault open".to_string()),
         }
     };
 
@@ -78,7 +78,7 @@ pub fn move_vault_items(
         let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
         match *guard {
             Some(ref p) => p.clone(),
-            None => return Err("No hay ninguna bóveda abierta".to_string()),
+            None => return Err("no vault open".to_string()),
         }
     };
 
@@ -117,7 +117,7 @@ pub fn copy_vault_items(
         let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
         match *guard {
             Some(ref p) => p.clone(),
-            None => return Err("No hay ninguna bóveda abierta".to_string()),
+            None => return Err("no vault open".to_string()),
         }
     };
 
@@ -158,7 +158,7 @@ pub fn import_external_items(
         let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
         match *guard {
             Some(ref p) => p.clone(),
-            None => return Err("No hay ninguna bóveda abierta".to_string()),
+            None => return Err("no vault open".to_string()),
         }
     };
 
@@ -254,7 +254,7 @@ pub fn read_binary_file(
 ) -> Result<Vec<u8>, String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
 
     state
@@ -301,7 +301,7 @@ pub fn write_binary_file(
 ) -> Result<(), String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
 
     state
@@ -327,7 +327,7 @@ pub fn create_vault_folder(
 ) -> Result<(), String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
 
     state.create_folder_use_case.execute(CreateFolderCommand {

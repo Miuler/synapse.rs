@@ -13,6 +13,11 @@ it('traduce el motivo solo y el que sigue a un valor', () => {
   expect(reasonText('config.jsonc cannot be read: fix it before saving')).toBe(
     'config.jsonc no se puede leer: corrígelo antes de guardar',
   );
+  expect(reasonText('t1.md (Equipo.board.md): belongs to that board and is changed from it')).toBe(
+    't1.md (Equipo.board.md): pertenece a ese tablero y se cambia desde él',
+  );
+  // El motivo más largo no se confunde con el que es su comienzo
+  expect(reasonText('nota.md: name already taken in the destination')).toBe('nota.md: ese nombre ya está en uso en el destino');
   i18n.setLocale('en');
   expect(reasonText('duplicate name except for case')).toBe('same name as another file except for letter case');
 });

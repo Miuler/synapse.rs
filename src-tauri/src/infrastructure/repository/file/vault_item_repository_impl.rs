@@ -16,11 +16,11 @@ fn board_tasks(board: &Path) -> Option<PathBuf> {
 /// Dónde iría la carpeta de un tablero que pasa a llamarse `target`: libre, y sin dejar de ser tablero.
 fn free_board_folder(target: &Path) -> Result<PathBuf, String> {
     let folder = protection::folder_of(target).ok_or_else(|| {
-        "Un tablero con carpeta de tareas conserva la extensión «.board.md»".to_string()
+        "a board with a task folder keeps the .board.md extension".to_string()
     })?;
     if folder.exists() {
         return Err(format!(
-            "Ya existe «{}»",
+            "{}: name already taken",
             folder.file_name().unwrap_or_default().to_string_lossy()
         ));
     }
@@ -50,7 +50,7 @@ impl VaultItemRepositoryImpl {
                 rel.to_string_lossy().to_string()
             } else {
                 return Err(
-                    "Operación no permitida: la ruta está fuera de los límites de la bóveda"
+                    "path outside the vault"
                         .to_string(),
                 );
             }
@@ -64,7 +64,7 @@ impl VaultItemRepositoryImpl {
                 continue;
             }
             if part == ".." {
-                return Err("Ruta no permitida con '..'".to_string());
+                return Err("path with '..' is not allowed".to_string());
             }
             target.push(part);
         }
@@ -106,13 +106,13 @@ impl VaultItemRepositoryImpl {
         let dest_dir = Self::resolve(vault_path, dest_dir_rel)?;
 
         if source == vault_path {
-            return Err("No se puede copiar la raíz de la bóveda".to_string());
+            return Err("cannot copy the vault root".to_string());
         }
         if !source.exists() {
-            return Err(format!("El elemento '{}' no existe", source_rel));
+            return Err(format!("{}: item does not exist", source_rel));
         }
         if !dest_dir.is_dir() {
-            return Err(format!("La carpeta destino '{}' no existe", dest_dir_rel));
+            return Err(format!("{}: destination folder does not exist", dest_dir_rel));
         }
 
         let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
@@ -121,7 +121,7 @@ impl VaultItemRepositoryImpl {
         if !canonical_source.starts_with(&canonical_vault)
             || !canonical_dest.starts_with(&canonical_vault)
         {
-            return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+            return Err("path outside the vault".to_string());
         }
 
         Self::copy_into(vault_path, &canonical_source, &dest_dir, &canonical_dest)
@@ -136,16 +136,16 @@ impl VaultItemRepositoryImpl {
     ) -> Result<String, String> {
         let dest_dir = Self::resolve(vault_path, dest_dir_rel)?;
         if !source_abs.is_absolute() || !source_abs.exists() {
-            return Err(format!("El elemento '{}' no existe", source_abs.display()));
+            return Err(format!("{}: item does not exist", source_abs.display()));
         }
         if !dest_dir.is_dir() {
-            return Err(format!("La carpeta destino '{}' no existe", dest_dir_rel));
+            return Err(format!("{}: destination folder does not exist", dest_dir_rel));
         }
         let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
         let canonical_source = source_abs.canonicalize().map_err(|e| e.to_string())?;
         let canonical_dest = dest_dir.canonicalize().map_err(|e| e.to_string())?;
         if !canonical_dest.starts_with(&canonical_vault) {
-            return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+            return Err("path outside the vault".to_string());
         }
         Self::copy_into(vault_path, &canonical_source, &dest_dir, &canonical_dest)
     }
@@ -159,13 +159,13 @@ impl VaultItemRepositoryImpl {
     ) -> Result<String, String> {
         let is_folder = canonical_source.is_dir();
         if is_folder && canonical_dest.starts_with(canonical_source) {
-            return Err("No se puede copiar una carpeta dentro de sí misma".to_string());
+            return Err("cannot copy a folder into itself".to_string());
         }
 
         let name = canonical_source
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
-            .ok_or_else(|| "Nombre de elemento inválido".to_string())?;
+            .ok_or_else(|| "invalid item name".to_string())?;
 
         let same_folder = canonical_source.parent() == Some(canonical_dest);
         let board = board_tasks(canonical_source).and(name.strip_suffix(".board.md"));
@@ -199,14 +199,14 @@ impl VaultItemRepositoryImpl {
 
         if is_folder {
             Self::copy_dir_recursive(canonical_source, &target)
-                .map_err(|e| format!("Error al copiar carpeta: {}", e))?;
+                .map_err(|e| format!("{}: could not copy the folder", e))?;
         } else {
             fs::copy(canonical_source, &target)
-                .map_err(|e| format!("Error al copiar archivo: {}", e))?;
+                .map_err(|e| format!("{}: could not copy the file", e))?;
         }
         if let (Some(tasks), Some(tasks_target)) = (tasks, tasks_target) {
             Self::copy_dir_recursive(&tasks, &tasks_target)
-                .map_err(|e| format!("Error al copiar la carpeta del tablero: {}", e))?;
+                .map_err(|e| format!("{}: could not copy the board folder", e))?;
         }
 
         Ok(Self::to_relative(vault_path, &target))
@@ -225,13 +225,13 @@ impl VaultItemRepositoryImpl {
         let dest_dir = Self::resolve(vault_path, dest_dir_rel)?;
 
         if source == vault_path {
-            return Err("No se puede mover la raíz de la bóveda".to_string());
+            return Err("cannot move the vault root".to_string());
         }
         if !source.exists() {
-            return Err(format!("El elemento '{}' no existe", source_rel));
+            return Err(format!("{}: item does not exist", source_rel));
         }
         if !dest_dir.is_dir() {
-            return Err(format!("La carpeta destino '{}' no existe", dest_dir_rel));
+            return Err(format!("{}: destination folder does not exist", dest_dir_rel));
         }
 
         let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
@@ -240,31 +240,30 @@ impl VaultItemRepositoryImpl {
         if !canonical_source.starts_with(&canonical_vault)
             || !canonical_dest.starts_with(&canonical_vault)
         {
-            return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+            return Err("path outside the vault".to_string());
         }
         if canonical_source.is_dir() && canonical_dest.starts_with(&canonical_source) {
-            return Err("No se puede mover una carpeta dentro de sí misma".to_string());
+            return Err("cannot move a folder into itself".to_string());
         }
 
         let name = source
             .file_name()
             .map(|n| n.to_os_string())
-            .ok_or_else(|| "Nombre de elemento inválido".to_string())?;
+            .ok_or_else(|| "invalid item name".to_string())?;
         if canonical_source.parent() == Some(canonical_dest.as_path()) {
             return Ok(Self::to_relative(vault_path, &source));
         }
         let target = dest_dir.join(&name);
         if target.exists() {
             return Err(format!(
-                "Ya existe un elemento llamado '{}' en el destino",
+                "{}: name already taken in the destination",
                 name.to_string_lossy()
             ));
         }
 
         board_guard::ensure_writable(&source)?;
         board_guard::ensure_writable(&target)?;
-        rename_with_board(&source, &target)
-            .map_err(|e| format!("Error al mover elemento: {}", e))?;
+        rename_with_board(&source, &target)?;
         Ok(Self::to_relative(vault_path, &target))
     }
 
@@ -276,38 +275,37 @@ impl VaultItemRepositoryImpl {
     ) -> Result<String, String> {
         let new_name = new_name.trim();
         if new_name.is_empty() || new_name == "." || new_name == ".." {
-            return Err("El nombre no puede estar vacío".to_string());
+            return Err("name cannot be empty".to_string());
         }
         if new_name.contains('/') || new_name.contains('\\') {
-            return Err("El nombre no puede contener separadores de ruta".to_string());
+            return Err("name cannot contain path separators".to_string());
         }
 
         let source = Self::resolve(vault_path, source_rel)?;
         if source == vault_path || !source.exists() {
-            return Err(format!("El elemento '{}' no existe", source_rel));
+            return Err(format!("{}: item does not exist", source_rel));
         }
 
         let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
         let canonical_source = source.canonicalize().map_err(|e| e.to_string())?;
         if !canonical_source.starts_with(&canonical_vault) {
-            return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+            return Err("path outside the vault".to_string());
         }
 
         let parent = source
             .parent()
-            .ok_or_else(|| "Elemento sin carpeta padre".to_string())?;
+            .ok_or_else(|| "item has no parent folder".to_string())?;
         let target = parent.join(new_name);
         if target == source {
             return Ok(Self::to_relative(vault_path, &source));
         }
         if target.exists() {
-            return Err(format!("Ya existe un elemento llamado '{}'", new_name));
+            return Err(format!("{}: name already taken", new_name));
         }
 
         board_guard::ensure_writable(&source)?;
         board_guard::ensure_writable(&target)?;
-        rename_with_board(&source, &target)
-            .map_err(|e| format!("Error al renombrar elemento: {}", e))?;
+        rename_with_board(&source, &target)?;
 
         // Markdown renombrado: si su frontmatter tenía `title` igual al nombre anterior, pasa al nuevo
         // (un título propio, distinto del nombre, se respeta; sin `title` no se añade)
@@ -340,34 +338,34 @@ impl VaultItemRepositoryImpl {
                 continue;
             }
             if part == ".." {
-                return Err("Ruta no permitida con '..'".to_string());
+                return Err("path with '..' is not allowed".to_string());
             }
             target_path.push(part);
         }
 
         if target_path == vault_path {
-            return Err("No se puede eliminar la raíz de la bóveda".to_string());
+            return Err("cannot delete the vault root".to_string());
         }
 
         board_guard::ensure_writable(&target_path)?;
         if !target_path.exists() {
-            return Err(format!("El elemento '{}' no existe", relative_path));
+            return Err(format!("{}: item does not exist", relative_path));
         }
 
         let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
         let canonical_target = target_path.canonicalize().map_err(|e| e.to_string())?;
         if !canonical_target.starts_with(&canonical_vault) || canonical_target == canonical_vault {
-            return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+            return Err("path outside the vault".to_string());
         }
 
         if canonical_target.is_dir() {
             std::fs::remove_dir_all(&canonical_target)
-                .map_err(|e| format!("Error al eliminar carpeta: {}", e))?;
+                .map_err(|e| format!("{}: could not delete the folder", e))?;
         } else if canonical_target.is_file() {
             std::fs::remove_file(&canonical_target)
-                .map_err(|e| format!("Error al eliminar archivo: {}", e))?;
+                .map_err(|e| format!("{}: could not delete the file", e))?;
         } else {
-            return Err("Tipo de elemento no soportado para eliminar".to_string());
+            return Err("unsupported item type".to_string());
         }
 
         Ok(())
@@ -381,21 +379,21 @@ impl VaultItemRepositoryImpl {
     ) -> Result<(), String> {
         let target = Self::resolve(vault_path, relative_path)?;
         if target == vault_path {
-            return Err("No se puede escribir directamente en la raíz de la bóveda".to_string());
+            return Err("cannot write to the vault root".to_string());
         }
         board_guard::ensure_writable(&target)?;
 
         let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
         if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("Error al crear directorio: {}", e))?;
+            fs::create_dir_all(parent).map_err(|e| format!("{}: could not create the folder", e))?;
             let canonical_parent = parent.canonicalize().map_err(|e| e.to_string())?;
             if !canonical_parent.starts_with(&canonical_vault) {
-                return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+                return Err("path outside the vault".to_string());
             }
         }
 
         fs::write(&target, bytes)
-            .map_err(|e| format!("Error al escribir archivo binario: {}", e))?;
+            .map_err(|e| format!("{}: could not write the file", e))?;
         Ok(())
     }
 

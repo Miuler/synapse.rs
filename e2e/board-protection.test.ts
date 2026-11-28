@@ -64,7 +64,7 @@ it('el explorador no puede eliminarlo', async () => {
   await s.browser.$('.confirm-dialog-btn.confirm').waitForExist({ timeout: 10_000 });
   await s.browser.$('.confirm-dialog-btn.confirm').click();
   await s.browser.waitUntil(
-    () => s.browser.execute(() => document.body.textContent?.includes('pertenece al tablero') ?? false) as Promise<boolean>,
+    () => s.browser.execute(() => document.body.textContent?.includes('pertenece a ese tablero') ?? false) as Promise<boolean>,
     { timeout: 10_000, timeoutMsg: 'no se explicó el rechazo' },
   );
   await shot('candado-eliminar');

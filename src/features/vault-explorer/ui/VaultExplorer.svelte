@@ -1378,7 +1378,7 @@
     } catch (err: unknown) {
       console.error('Error al crear nueva nota:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Error al crear nueva nota: ${msg}`);
+      showToast(t('explorer.errors.createNote', { detail: msg }));
     } finally {
       isCreatingNote = false;
     }
@@ -1449,7 +1449,7 @@
     } catch (err: unknown) {
       console.error('Error al crear carpeta:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Error al crear carpeta: ${msg}`);
+      showToast(t('explorer.errors.createFolder', { detail: msg }));
     } finally {
       isCreatingFolder = false;
     }
@@ -1500,7 +1500,7 @@
     } catch (err: unknown) {
       console.error('Error al mover elemento(s):', err);
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Error al mover: ${msg}`);
+      showToast(t('explorer.errors.move', { detail: msg }));
     }
   }
 
@@ -1661,7 +1661,7 @@
     } catch (err: unknown) {
       console.error('Error al pegar elemento(s):', err);
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Error al pegar: ${msg}`);
+      showToast(t('explorer.errors.paste', { detail: msg }));
     } finally {
       isPasting = false;
     }
@@ -1787,7 +1787,7 @@
     } catch (err: unknown) {
       console.error('Error al recargar elemento(s):', err);
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Error al recargar: ${msg}`);
+      showToast(t('explorer.errors.reload', { detail: msg }));
     } finally {
       isReloading = false;
     }
@@ -1858,7 +1858,7 @@
     } catch (err: unknown) {
       console.error('Error al renombrar:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Error al renombrar: ${msg}`);
+      showToast(t('explorer.errors.rename', { detail: msg }));
     }
   }
 
@@ -1903,7 +1903,7 @@
     } catch (err: unknown) {
       console.error('Error al borrar elemento(s):', err);
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Error al borrar: ${msg}`);
+      showToast(t('explorer.errors.delete', { detail: msg }));
     } finally {
       isDeleting = false;
     }

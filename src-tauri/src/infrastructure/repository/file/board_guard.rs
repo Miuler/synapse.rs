@@ -21,7 +21,7 @@ pub fn ensure_writable(path: &Path) -> Result<(), String> {
     match owner(path) {
         None => Ok(()),
         Some(board) => Err(format!(
-            "«{}» pertenece al tablero «{board}»: se cambia desde el tablero",
+            "{} ({board}): belongs to that board and is changed from it",
             path.file_name().unwrap_or_default().to_string_lossy()
         )),
     }

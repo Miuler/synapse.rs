@@ -3,6 +3,8 @@
  * Provee tipado estricto, manejo seguro de errores y compatibilidad de entorno.
  */
 
+import { reasonText } from '../lib/i18n/reason';
+
 /** Registro de llamadas IPC (en desarrollo, o en builds de medición): lo leen las pruebas e2e. */
 export interface IpcLogEntry {
   cmd: string;
@@ -16,6 +18,15 @@ export interface IpcLogEntry {
 const SECRET_ARGS = new Set(['set_azure_token', 'issues_save_connection']);
 
 export async function invokeTauri<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  try {
+    return await invokeTimed<T>(cmd, args);
+  } catch (error) {
+    // Los motivos fijos de Rust salen en el idioma de la interfaz; cualquier otro texto, tal cual
+    throw typeof error === 'string' ? reasonText(error) : error;
+  }
+}
+
+async function invokeTimed<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   // En producción solo se registra si el build se hizo con VITE_SYNAPSE_IPC_LOG=1 (mediciones).
   if (!import.meta.env.DEV && import.meta.env.VITE_SYNAPSE_IPC_LOG !== '1') return invokeTauriRaw<T>(cmd, args);
   const start = performance.now();

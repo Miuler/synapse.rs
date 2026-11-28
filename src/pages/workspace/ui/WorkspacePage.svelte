@@ -3032,7 +3032,7 @@
           showWorkspaceToast(`Archivo renombrado a ${cleanTitle}`);
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          showWorkspaceToast(`No se pudo renombrar: ${msg}`);
+          showWorkspaceToast(t('explorer.errors.rename', { detail: msg }));
         }
         return;
       }

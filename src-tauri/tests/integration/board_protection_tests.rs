@@ -119,7 +119,7 @@ fn las_notas_y_los_elementos_no_escriben_en_la_carpeta() {
     for (how, result) in attempts {
         let error = result.expect_err(how);
         assert!(
-            error.contains("pertenece al tablero «Equipo.board.md»"),
+            error.contains("(Equipo.board.md): belongs to that board"),
             "{how}: {error}"
         );
         intact(root, how);
@@ -179,7 +179,7 @@ fn las_herramientas_mcp_tampoco() {
     for (tool, args) in calls {
         let how = format!("{tool} {args}");
         let answer = serde_json::to_string(&handler.call_tool(tool, Some(args))).unwrap();
-        assert!(answer.contains("pertenece al tablero"), "{how}: {answer}");
+        assert!(answer.contains("belongs to that board"), "{how}: {answer}");
         intact(root, &how);
     }
     assert!(root.join("nota.md").exists());

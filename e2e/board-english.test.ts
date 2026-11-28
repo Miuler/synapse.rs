@@ -158,6 +158,27 @@ it('el motivo que escribe Rust sale en inglés', async () => {
   expect(await spanish(`${pane} .board-editor`)).toEqual([]);
 }, 60_000);
 
+it('el rechazo del explorador a tocar un archivo del tablero sale en inglés', async () => {
+  const task = '.file-tree-item[data-path="items.board/t1.md"]';
+  await s.browser.$('.file-tree-item[data-path="items.board"]').click();
+  await s.browser.$(task).waitForExist({ timeout: 10_000 });
+  await s.browser.$(task).click({ button: 'right' });
+  await s.browser.$('.context-menu-item').waitForExist({ timeout: 5_000 });
+  // El menú del explorador todavía está en español
+  await s.browser.execute(() =>
+    ([...document.querySelectorAll('.context-menu-item')].find((i) => i.textContent?.trim().startsWith('Borrar')) as HTMLElement).click(),
+  );
+  await s.browser.$('.confirm-dialog-btn.confirm').waitForExist({ timeout: 10_000 });
+  await s.browser.$('.confirm-dialog-btn.confirm').click();
+  await s.browser.$('.vault-toast').waitForExist({ timeout: 10_000 });
+  expect(await s.browser.$('.vault-toast').getText()).toBe(
+    'Could not delete: t1.md (items.board.md): belongs to that board and is changed from it',
+  );
+  expect(existsSync(join(s.vault, 'items.board/t1.md'))).toBe(true);
+  await s.browser.keys(['Escape']);
+  await s.browser.$('.confirm-dialog').waitForExist({ reverse: true, timeout: 10_000 });
+}, 90_000);
+
 it('la configuración de conexiones', async () => {
   await s.browser.$('[aria-label="Settings"]').click();
   await s.browser.$('.settings-nav-item').waitForExist({ timeout: 15_000 });

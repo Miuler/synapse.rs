@@ -8,10 +8,7 @@ impl NoteRelativePath {
     pub fn new(path: &str) -> Result<Self, String> {
         // Prevención de seguridad: no permitir navegación fuera de la bóveda
         if path.contains("..") {
-            return Err(
-                "Ruta no válida: no se permite navegación fuera de la bóveda (Path Traversal)"
-                    .to_string(),
-            );
+            return Err("path outside the vault".to_string());
         }
 
         // Normalización de la ruta
@@ -21,7 +18,7 @@ impl NoteRelativePath {
             .replace('\\', "/");
 
         if normalized.is_empty() {
-            return Err("La ruta no puede estar vacía".to_string());
+            return Err("path cannot be empty".to_string());
         }
 
         Ok(Self(normalized))
@@ -30,11 +27,11 @@ impl NoteRelativePath {
     /// Crea una ruta a partir de una ubicación absoluta en el sistema de archivos (Modo puntual).
     pub fn from_absolute_path(path: &str) -> Result<Self, String> {
         if path.contains("..") {
-            return Err("Ruta no válida: no se permite navegación relativa con ..".to_string());
+            return Err("path with '..' is not allowed".to_string());
         }
         let normalized = path.replace('\\', "/");
         if normalized.is_empty() {
-            return Err("La ruta no puede estar vacía".to_string());
+            return Err("path cannot be empty".to_string());
         }
         Ok(Self(normalized))
     }
