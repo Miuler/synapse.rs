@@ -163,6 +163,12 @@ Editing a board while it is still a table rewrites it with the seven columns Syn
 are lost then, so convert before editing if they matter. Versions of Synapse without this format show a converted
 board without tasks.
 
+### Reading mode
+
+A board opens in edit mode. In reading mode (chosen with the view button, and remembered for that board in the vault) or
+when the file is locked, it can only be viewed: nothing is moved, added, edited, deleted or commented, and it is not
+pulled, pushed, configured or converted from the board. Switching views, sorting the table and opening a task still work.
+
 ### Description, comments and history
 
 On a folder board, «Pull» also saves in each task file its description and activity (comments and history changes,

@@ -7,6 +7,8 @@
   interface Props {
     tasks: BoardTask[];
     columns: BoardColumn[];
+    /** En modo lectura los campos no se cambian; ordenar sí, que solo es mirar. */
+    readOnly?: boolean;
     /** Ids de las tareas fuera del filtro. */
     outside: Set<string>;
     /** Datos del proveedor que se ven: `key`, `type`, `assignee`. */
@@ -19,7 +21,7 @@
     onSelectComments: (id: string) => void;
   }
 
-  let { tasks, columns, outside, fields, sort, onSort, onUpdateTask, onDeleteTask, onAddTask, onSelectComments }: Props = $props();
+  let { tasks, columns, readOnly = false, outside, fields, sort, onSort, onUpdateTask, onDeleteTask, onAddTask, onSelectComments }: Props = $props();
 
   let headers = $derived<{ key: TaskSortKey; label: string; class?: string }[]>([
     { key: 'id', label: 'ID', class: 'col-id' },
@@ -102,6 +104,7 @@
           {#if fields.includes('type')}<td class="cell-type">{task.type ?? ''}</td>{/if}
           <td>
             <input
+              disabled={readOnly}
               type="text"
               value={task.title}
               onchange={(e) => onUpdateTask(task.id, { title: e.currentTarget.value })}
@@ -109,6 +112,7 @@
           </td>
           <td>
             <select
+              disabled={readOnly}
               value={task.status}
               onchange={(e) => onUpdateTask(task.id, { status: e.currentTarget.value })}
             >
@@ -120,6 +124,7 @@
           {#if fields.includes('assignee')}<td class="cell-assignee">{task.assignee ?? ''}</td>{/if}
           <td>
             <input
+              disabled={readOnly}
               type="date"
               value={task.start}
               onchange={(e) => onUpdateTask(task.id, { start: e.currentTarget.value })}
@@ -127,6 +132,7 @@
           </td>
           <td class="col-num">
             <input
+              disabled={readOnly}
               type="number"
               min="1"
               value={task.duration}
@@ -136,6 +142,7 @@
           </td>
           <td>
             <select
+              disabled={readOnly}
               class="depends"
               value={task.dependsOn}
               onfocus={() => choose(task.id)}
@@ -154,6 +161,7 @@
           </td>
           <td class="col-num">
             <input
+              disabled={readOnly}
               type="number"
               min="0"
               max="100"
@@ -176,23 +184,25 @@
                 <span class="badge">{task.comments.length}</span>
               {/if}
             </button>
-            <button
+            {#if !readOnly}<button
               type="button"
               class="icon-btn danger"
               title="Eliminar"
               onclick={() => onDeleteTask(task.id)}
             >
               <Trash2 size={14} />
-            </button>
+            </button>{/if}
           </td>
         </tr>
       {/each}
     </tbody>
   </table>
 
-  <button type="button" class="add-row-btn" onclick={onAddTask}>
-    <Plus size={14} /> Añadir tarea
-  </button>
+  {#if !readOnly}
+    <button type="button" class="add-row-btn" onclick={onAddTask}>
+      <Plus size={14} /> Añadir tarea
+    </button>
+  {/if}
 </div>
 
 <style>

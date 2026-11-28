@@ -26,11 +26,13 @@
     write: (next: BoardDocument) => void;
     /** El tablero se acaba de crear: si se puede sincronizar, se pregunta de dónde salen sus tareas. */
     isNew?: boolean;
+    /** En modo lectura no se sincroniza desde aquí; lo ya empezado termina de guardarse. */
+    readOnly?: boolean;
     /** Solo en los tableros de carpeta: con ella se guarda también la descripción y la actividad. */
     readTask?: (id: string) => Promise<{ task: TaskFile }>;
   }
 
-  let { read, write, isNew = false, readTask }: Props = $props();
+  let { read, write, isNew = false, readOnly = false, readTask }: Props = $props();
 
   let busy = $state(false);
   let providers = $state<IssueProvider[]>([]);
@@ -200,13 +202,13 @@
 
 <div class="issues-sync">
   <span class="issues-name">{provider?.name}</span>
-  <button type="button" class="issues-pull" disabled={busy} title={t('issues.pullHint', { provider: provider?.name ?? '' })} onclick={pull}>
+  <button type="button" class="issues-pull" disabled={busy || readOnly} title={readOnly ? t('board.readOnly') : t('issues.pullHint', { provider: provider?.name ?? '' })} onclick={pull}>
     <CloudDownload size={14} /> {t('issues.pull')}
   </button>
-  <button type="button" class="issues-push" disabled={busy} title={t('issues.pushHint', { provider: provider?.name ?? '' })} onclick={preparePush}>
+  <button type="button" class="issues-push" disabled={busy || readOnly} title={readOnly ? t('board.readOnly') : t('issues.pushHint', { provider: provider?.name ?? '' })} onclick={preparePush}>
     <CloudUpload size={14} /> {t('issues.push')}
   </button>
-  <button type="button" class="issues-settings" disabled={busy} title={t('issues.settings', { provider: provider?.name ?? '' })} aria-label={t('issues.settings', { provider: provider?.name ?? '' })} onclick={openSettings}>
+  <button type="button" class="issues-settings" disabled={busy || readOnly} title={readOnly ? t('board.readOnly') : t('issues.settings', { provider: provider?.name ?? '' })} aria-label={t('issues.settings', { provider: provider?.name ?? '' })} onclick={openSettings}>
     <Settings2 size={14} />
   </button>
 </div>

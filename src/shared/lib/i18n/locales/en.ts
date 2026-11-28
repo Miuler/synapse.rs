@@ -260,6 +260,7 @@ export const en = {
     alsoDeleteFolder: 'Also delete its task folder «{folder}»',
     type: 'Type',
     assignee: 'Assigned to',
+    readOnly: 'Reading mode: switch to editing to change the board.',
     unreadable: 'These files could not be read as tasks: {files}',
     convert: {
       banner: 'This board keeps its tasks in a table.',

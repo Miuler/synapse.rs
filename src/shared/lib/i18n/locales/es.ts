@@ -261,6 +261,7 @@ export const es: TranslationSchema = {
     alsoDeleteFolder: 'Eliminar también su carpeta de tareas «{folder}»',
     type: 'Tipo',
     assignee: 'Asignado a',
+    readOnly: 'Modo lectura: pasa a edición para cambiar el tablero.',
     unreadable: 'Estos archivos no se pudieron leer como tareas: {files}',
     convert: {
       banner: 'Este tablero guarda sus tareas en una tabla.',

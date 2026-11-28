@@ -37,6 +37,8 @@
     /** Ruta del tablero en la bóveda. */
     path?: string;
     vimMode?: boolean;
+    /** La pestaña está en lectura o el archivo bloqueado: el tablero solo se mira. */
+    readOnly?: boolean;
     onChange: (nextContent: string) => void;
     /** Guarda lo pendiente y devuelve lo que quedó en disco; `null` si el archivo está bloqueado. */
     beforeConvert?: () => Promise<string | null>;
@@ -44,7 +46,7 @@
     onConverted?: () => Promise<void>;
   }
 
-  let { content, path = '', vimMode = false, onChange, beforeConvert, onConverted }: Props = $props();
+  let { content, path = '', vimMode = false, readOnly = false, onChange, beforeConvert, onConverted }: Props = $props();
 
   const isNew = untrack(() => takeNewBoard(path));
 
@@ -77,7 +79,8 @@
 
   function errorText(error: unknown): string {
     const e = error as Partial<BoardError>;
-    return e.kind ? t(`board.errors.${e.kind}`, { detail: e.detail ?? '' }) : String(error);
+    if (e.kind) return t(`board.errors.${e.kind}`, { detail: e.detail ?? '' });
+    return error instanceof Error ? error.message : String(error);
   }
   let storeError = $derived(store?.error ? errorText(store.error) : '');
 
@@ -143,8 +146,20 @@
     write({ ...doc, tasks, source: { ...doc.source!, links: { ...doc.source!.links, [id]: { ...link, ...base } } } });
   }
 
+  /** Con lo escrito en el detalle, mejor avisar que darlo por guardado. */
+  function assertEditable() {
+    if (readOnly) throw new Error(t('board.readOnly'));
+  }
+
+  /** Cambia lo que de una tarea no está en el documento. */
+  async function editFile(id: string, change: (file: TaskFile) => TaskFile) {
+    assertEditable();
+    await store!.edit(id, change);
+  }
+
   /** Guarda un comentario o una entrada del histórico con otro texto. */
   async function saveEntry(id: string, entry: EntryRef, text: string) {
+    assertEditable();
     if (folder) return store?.edit(id, (file) => editEntry(file, entry, text));
     // En la tabla cada comentario es una línea
     const line = text.replace(/\s*\n\s*/g, ' ');
@@ -166,7 +181,13 @@
     write({ ...doc, columnWidths: width === null ? others : { ...others, [id]: width } });
   }
 
+  /** Un cambio hecho a mano: en modo lectura no hay ninguno. */
   function write(next: BoardDocument) {
+    if (!readOnly) save(next);
+  }
+
+  /** Lo que se guarda también si se pasó a lectura: lo de una sincronización ya empezada. */
+  function save(next: BoardDocument) {
     // Mientras se convierte, nada puede volver a escribir la tabla encima
     if (converting) return;
     if (folder) store?.write(next);
@@ -271,13 +292,14 @@
       </button>
     </div>
 
-    <IssueSync read={() => doc} {write} {isNew} readTask={folder && store ? (id) => store!.readTask(id) : undefined} />
+    {#if readOnly}<span class="board-readonly">{t('board.readOnly')}</span>{/if}
+    <IssueSync read={() => doc} write={save} {isNew} {readOnly} readTask={folder && store ? (id) => store!.readTask(id) : undefined} />
   </header>
 
   {#if !folder && path && beforeConvert}
     <div class="board-convert">
       <span>{t('board.convert.banner')}</span>
-      <button type="button" disabled={converting} onclick={() => (confirmingConversion = true)}>
+      <button type="button" disabled={converting || readOnly} onclick={() => (confirmingConversion = true)}>
         {t('board.convert.action')}
       </button>
     </div>
@@ -294,6 +316,7 @@
     <div class="board-main">
       {#if currentView === 'table'}
         <TableView
+          {readOnly}
           tasks={doc.tasks}
           fields={tableFields}
           {outside}
@@ -307,6 +330,7 @@
         />
       {:else if currentView === 'kanban'}
         <KanbanView
+          {readOnly}
           tasks={doc.tasks}
           fields={cardFields}
           {outside}
@@ -324,6 +348,7 @@
         </div>
       {:else}
         <GanttView
+          {readOnly}
           tasks={doc.tasks}
           onUpdateTask={updateTask}
           onSelectComments={(id) => (selectedTaskId = id)}
@@ -345,11 +370,12 @@
           onClose={() => (selectedTaskId = null)}
           onAddComment={addComment}
           onUpdate={(patch) => updateTask(selectedTask!.id, patch)}
+          {readOnly}
           onSaveDescription={(previous, text) =>
-            store!.edit(selectedTask!.id, (file) => editDescription(file, previous, text))}
+            editFile(selectedTask!.id, (file) => editDescription(file, previous, text))}
           onSaveEntry={(entry, text) => saveEntry(selectedTask!.id, entry, text)}
           onTakeProviderDescription={(previous) =>
-            store!.edit(selectedTask!.id, (file) => takeProviderDescription(file, previous))}
+            editFile(selectedTask!.id, (file) => takeProviderDescription(file, previous))}
         />
       {/key}
     {/if}
@@ -371,6 +397,12 @@
 />
 
 <style>
+  .board-readonly {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
   .board-convert {
     display: flex;
     flex-wrap: wrap;

@@ -206,9 +206,18 @@
   const imageReloads = new SvelteMap<string, number>();
   /** Modo Lectura/Edición de cada copia de pestaña (`copy:n:…`): independiente del original. */
   const copyModes = new SvelteMap<string, MarkdownViewMode>();
+  // Un tablero se usa editándolo: se abre en edición salvo que se haya elegido lectura. El índice da
+  // «reading» a todo archivo sin elección, así que la de los tableros se recuerda aparte
+  const isBoardFile = (path: string) => baseTabPath(path).toLowerCase().endsWith('.board.md');
+  const boardReadingKey = (path: string) => `synapse.board.reading:${baseTabPath(path)}`;
+  /** El modo con el que se recuerda un archivo, partiendo del guardado en el índice o en las pestañas. */
+  function rememberedMode(path: string, stored: string | null | undefined): string | undefined {
+    if (!isBoardFile(path)) return stored ?? undefined;
+    return loadVaultFlag(boardReadingKey(path), appSettings.lastOpenedFolder, false) ? 'reading' : 'live';
+  }
   /** Modo guardado de una pestaña: el de la copia, o el del archivo. */
   function modeOfTab(tabPath: string): MarkdownViewMode {
-    if (isTabCopy(tabPath)) return copyModes.get(tabPath) ?? 'reading';
+    if (isTabCopy(tabPath)) return copyModes.get(tabPath) ?? (isBoardFile(tabPath) ? 'live' : 'reading');
     return (openedNotes[tabPath]?.viewMode ?? 'reading') as MarkdownViewMode;
   }
   /** Guarda el modo de una pestaña: en la copia solo en memoria; en el archivo, persistido. */
@@ -218,6 +227,7 @@
       return;
     }
     if (openedNotes[tabPath]) openedNotes[tabPath].viewMode = mode;
+    if (isBoardFile(tabPath)) saveVaultFlag(boardReadingKey(tabPath), appSettings.lastOpenedFolder, mode === 'reading');
     vaultItemStore.patch(tabPath, { view_mode: mode });
     vaultRepository.setNoteViewMode(tabPath, mode);
     persistTabsState();
@@ -982,7 +992,7 @@
           const vItem = vaultItemStore.get(tab.path);
           const isDrawing = isDrawingTab(tab.path);
           const isTabLocked = unsavedChanges.isLocked(tab.path);
-          const memoryMode = (tab.view_mode || vItem?.view_mode) as MarkdownViewMode | undefined;
+          const memoryMode = rememberedMode(tab.path, tab.view_mode || vItem?.view_mode) as MarkdownViewMode | undefined;
           const mode: MarkdownViewMode = (!isDrawing && !isTabLocked && memoryMode && ['live', 'source', 'reading'].includes(memoryMode))
             ? memoryMode
             : "reading";
@@ -1156,7 +1166,7 @@
 
     if (!openedNotes[path]) {
       const isDrawing = isDrawingTab(path);
-      const memoryMode = (vaultItem?.view_mode) as MarkdownViewMode | undefined;
+      const memoryMode = rememberedMode(path, vaultItem?.view_mode) as MarkdownViewMode | undefined;
       const defaultMode: MarkdownViewMode = (lockedFiles.has(path) || isDrawing) ? "reading" : (memoryMode || "reading");
       openedNotes[path] = {
         relative_path: path,
@@ -1186,7 +1196,7 @@
         const hasExplicitEditSession = isAlreadyLoaded && (previousMode === 'live' || previousMode === 'source');
         const currentMode: MarkdownViewMode = (lockedFiles.has(path) || isDrawing)
           ? (hasExplicitEditSession ? previousMode : "reading")
-          : (previousMode || ((noteData.view_mode as MarkdownViewMode) || (vaultItem?.view_mode as MarkdownViewMode) || "reading"));
+          : (previousMode || (rememberedMode(path, noteData.view_mode || vaultItem?.view_mode) as MarkdownViewMode) || "reading");
 
         if (isDrawing && !hasExplicitEditSession) {
           if (path === activeTabPath) {
@@ -1437,7 +1447,8 @@
       const existingMode = openedNotes[path]?.viewMode;
       const isAlreadyLoaded = openedNotes[path]?.isLoaded === true;
       const hasExplicitEditSession = isAlreadyLoaded && (existingMode === 'live' || existingMode === 'source');
-      const validMemoryMode = vItem?.view_mode && ['live', 'source', 'reading'].includes(vItem.view_mode) ? (vItem.view_mode as MarkdownViewMode) : undefined;
+      const saved = rememberedMode(path, vItem?.view_mode);
+      const validMemoryMode = saved && ['live', 'source', 'reading'].includes(saved) ? (saved as MarkdownViewMode) : undefined;
       const mode: MarkdownViewMode = (isLocked || isDrawing)
         ? (hasExplicitEditSession ? (existingMode as MarkdownViewMode) : "reading")
         : (existingMode || validMemoryMode || "reading");
@@ -1703,7 +1714,8 @@
             const isDrawing = isDrawingTab(activeTabPath, openedNotes[activeTabPath]?.content);
             const existingMode = openedNotes[activeTabPath]?.viewMode;
             const hasExplicitEditSession = existingMode === 'live' || existingMode === 'source';
-            const validMemoryMode = vItem?.view_mode && ['live', 'source', 'reading'].includes(vItem.view_mode) ? (vItem.view_mode as MarkdownViewMode) : undefined;
+            const saved = rememberedMode(activeTabPath, vItem?.view_mode);
+            const validMemoryMode = saved && ['live', 'source', 'reading'].includes(saved) ? (saved as MarkdownViewMode) : undefined;
             const nextMode: MarkdownViewMode = (isLocked || isDrawing)
               ? (hasExplicitEditSession ? (existingMode as MarkdownViewMode) : "reading")
               : (existingMode || validMemoryMode || "reading");
@@ -2101,7 +2113,8 @@
       const existingMode = openedNotes[path]?.viewMode;
       const isAlreadyLoaded = openedNotes[path]?.isLoaded === true;
       const hasExplicitEditSession = isAlreadyLoaded && (existingMode === 'live' || existingMode === 'source');
-      const validMemoryMode = vItem?.view_mode && ['live', 'source', 'reading'].includes(vItem.view_mode) ? (vItem.view_mode as MarkdownViewMode) : undefined;
+      const saved = rememberedMode(path, vItem?.view_mode);
+      const validMemoryMode = saved && ['live', 'source', 'reading'].includes(saved) ? (saved as MarkdownViewMode) : undefined;
       const mode: MarkdownViewMode = (isLocked || isDrawing)
         ? (hasExplicitEditSession ? (existingMode as MarkdownViewMode) : "reading")
         : (existingMode || validMemoryMode || "reading");
@@ -2151,7 +2164,7 @@
             const vItem = vaultItemStore.get(activeSplitTabPath);
             const isLocked = lockedFiles.has(activeSplitTabPath);
             const isDrawing = isDrawingTab(activeSplitTabPath, openedNotes[activeSplitTabPath]?.content);
-            const nextMode = ((isLocked || isDrawing) ? "reading" : (openedNotes[activeSplitTabPath]?.viewMode || vItem?.view_mode || "reading")) as MarkdownViewMode;
+            const nextMode = ((isLocked || isDrawing) ? "reading" : (openedNotes[activeSplitTabPath]?.viewMode || rememberedMode(activeSplitTabPath, vItem?.view_mode) || "reading")) as MarkdownViewMode;
             splitMarkdownViewMode = nextMode;
             isSplitEditing = nextMode !== "reading";
           }
@@ -2235,7 +2248,8 @@
       const existingMode = openedNotes[path]?.viewMode;
       const isAlreadyLoaded = openedNotes[path]?.isLoaded === true;
       const hasExplicitEditSession = isAlreadyLoaded && (existingMode === 'live' || existingMode === 'source');
-      const validMemoryMode = vItem?.view_mode && ['live', 'source', 'reading'].includes(vItem.view_mode) ? (vItem.view_mode as MarkdownViewMode) : undefined;
+      const saved = rememberedMode(path, vItem?.view_mode);
+      const validMemoryMode = saved && ['live', 'source', 'reading'].includes(saved) ? (saved as MarkdownViewMode) : undefined;
       const mode: MarkdownViewMode = (isLocked || isDrawing)
         ? (hasExplicitEditSession ? (existingMode as MarkdownViewMode) : "reading")
         : (existingMode || validMemoryMode || "reading");
@@ -5065,6 +5079,7 @@
                     {content}
                     path={tabFile}
                     vimMode={isVimMode}
+                    readOnly={!paneEditing || lockedFiles.has(tabFile)}
                     onChange={(updatedContent) => {
                       if (openedNotes[tabFile]) {
                         openedNotes[tabFile].content = updatedContent;

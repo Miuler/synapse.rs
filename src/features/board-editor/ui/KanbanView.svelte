@@ -7,6 +7,8 @@
   interface Props {
     tasks: BoardTask[];
     columns: BoardColumn[];
+    /** En modo lectura solo se mira: nada se mueve, se añade ni se ensancha. */
+    readOnly?: boolean;
     /** Ids de las tareas fuera del filtro. */
     outside: Set<string>;
     /** Datos del proveedor que se ven en la tarjeta: `key`, `type`, `assignee`. */
@@ -21,8 +23,9 @@
     onSelectComments: (id: string) => void;
   }
 
-  let { tasks, columns, outside, fields, widths, onResizeColumn, onMoveTask, onOpenTask, onAddTask, onSelectComments }: Props =
-    $props();
+  let {
+    tasks, columns, readOnly = false, outside, fields, widths, onResizeColumn, onMoveTask, onOpenTask, onAddTask, onSelectComments,
+  }: Props = $props();
 
   // Arrastre con eventos de puntero: el de HTML5 no llega a soltar en el webview (Tauri atiende el
   // soltado nativo, para los archivos)
@@ -97,7 +100,7 @@
   }
 
   function startDrag(e: PointerEvent, task: BoardTask) {
-    if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
+    if (readOnly || e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
     const card = e.currentTarget as HTMLElement;
     const box = card.getBoundingClientRect();
     // Sin esto, al arrastrar se selecciona el texto por donde pasa el puntero
@@ -151,7 +154,7 @@
       e.preventDefault();
       return onOpenTask(task.id);
     }
-    if (!e.shiftKey || !e.key.startsWith('Arrow')) return;
+    if (readOnly || !e.shiftKey || !e.key.startsWith('Arrow')) return;
     e.preventDefault();
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       const step = e.key === 'ArrowRight' ? 1 : -1;
@@ -245,29 +248,33 @@
         {/each}
       </div>
 
-      <button type="button" class="add-card-btn" onclick={() => onAddTask(col.id)}>
-        <Plus size={13} /> Añadir
-      </button>
-      <!-- Un separador que se puede enfocar es un control (WAI-ARIA «window splitter») -->
-      <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-      <div
-        class="col-resizer"
-        class:active={resize?.id === col.id}
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={t('board.resizeColumn', { column: col.label })}
-        aria-valuemin={COLUMN_WIDTH.min}
-        aria-valuemax={COLUMN_WIDTH.max}
-        aria-valuenow={width}
-        title={t('board.resizeColumnHint')}
-        tabindex="0"
-        onpointerdown={(e) => startResize(e, col.id)}
-        onpointermove={moveResize}
-        onpointerup={endResize}
-        onpointercancel={() => (resize = null)}
-        ondblclick={() => onResizeColumn(col.id, null)}
-        onkeydown={(e) => onResizerKey(e, col.id)}
-      ></div>
+      {#if !readOnly}
+        <button type="button" class="add-card-btn" onclick={() => onAddTask(col.id)}>
+          <Plus size={13} /> Añadir
+        </button>
+      {/if}
+      {#if !readOnly}
+        <!-- Un separador que se puede enfocar es un control (WAI-ARIA «window splitter») -->
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+        <div
+          class="col-resizer"
+          class:active={resize?.id === col.id}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t('board.resizeColumn', { column: col.label })}
+          aria-valuemin={COLUMN_WIDTH.min}
+          aria-valuemax={COLUMN_WIDTH.max}
+          aria-valuenow={width}
+          title={t('board.resizeColumnHint')}
+          tabindex="0"
+          onpointerdown={(e) => startResize(e, col.id)}
+          onpointermove={moveResize}
+          onpointerup={endResize}
+          onpointercancel={() => (resize = null)}
+          ondblclick={() => onResizeColumn(col.id, null)}
+          onkeydown={(e) => onResizerKey(e, col.id)}
+        ></div>
+      {/if}
     </div>
   {/each}
 </div>

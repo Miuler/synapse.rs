@@ -29,6 +29,8 @@
     file?: TaskFile;
     /** Tablero de carpeta: además tiene descripción, tipo, asignado e histórico. */
     folder: boolean;
+    /** En modo lectura el detalle solo se mira. */
+    readOnly?: boolean;
     errorText: (error: unknown) => string;
     onClose: () => void;
     onAddComment: (taskId: string, text: string) => void;
@@ -42,7 +44,7 @@
 
   let {
     task, tasks, columns, link, file, folder, errorText, onClose, onAddComment, onUpdate, onSaveDescription, onSaveEntry,
-    onTakeProviderDescription,
+    onTakeProviderDescription, readOnly = false,
   }: Props = $props();
   let history = $derived(file?.activity.filter((entry) => entry.kind === 'history') ?? []);
   let column = $derived(columns.find((c) => c.id === task.status));
@@ -160,9 +162,11 @@
 {/snippet}
 
 {#snippet pencil(label: string, onclick: () => void, disabledHint?: string)}
+  {#if !readOnly}
   <button type="button" class="pencil" aria-label={label} title={disabledHint ?? label} disabled={!!editing || !!disabledHint} {onclick}>
     <Pencil size={12} />
   </button>
+  {/if}
 {/snippet}
 
 <ResizableDialog
@@ -183,6 +187,7 @@
     <section class="task-main">
       <input
         class="detail-title"
+        disabled={readOnly}
         type="text"
         aria-label={t('board.detail.title')}
         value={task.title}
@@ -212,7 +217,7 @@
         {#if link && !editing}
           {#if awaitsProviderDescription(file)}
             <p class="detail-note take-pending">{t('board.detail.takeProviderPending')}</p>
-          {:else if ownDescription(file)}
+          {:else if !readOnly && ownDescription(file)}
             <button type="button" class="take-provider" onclick={() => (reverting = file!.description)}>
               {t('board.detail.takeProvider')}
             </button>
@@ -252,6 +257,7 @@
         {/if}
       </div>
 
+      {#if !readOnly}
       <form class="comment-form" onsubmit={submit}>
         <!-- Con algo escrito, Escape no cierra el diálogo: se perdería -->
         <input
@@ -264,6 +270,7 @@
           <Send size={14} />
         </button>
       </form>
+      {/if}
 
       {#if history.length}
         <h3>{t('board.detail.history')}</h3>
@@ -294,6 +301,7 @@
         class="detail-status"
         style="--status: {column?.color ?? 'var(--text-muted)'}"
         aria-label={t('board.detail.status')}
+        disabled={readOnly}
         value={task.status}
         onchange={(e) => onUpdate({ status: e.currentTarget.value })}
       >
@@ -316,6 +324,7 @@
               <input
                 type="text"
                 aria-label={t(`board.${key}`)}
+                disabled={readOnly}
                 list="task-{key}-values"
                 value={task[key] ?? ''}
                 onkeydown={(e) => fieldKeys(e, task[key] ?? '')}
@@ -332,6 +341,7 @@
           <input
             type="date"
             aria-label={t('board.detail.start')}
+            disabled={readOnly}
             value={task.start}
             onchange={(e) => {
               if (e.currentTarget.value) onUpdate({ start: e.currentTarget.value });
@@ -345,13 +355,14 @@
             type="number"
             min="1"
             aria-label={t('board.detail.durationDays')}
+            disabled={readOnly}
             value={task.duration}
             onchange={(e) => numberField(e.currentTarget, 'duration', 1, 100000)}
           />
         </dd>
         <dt>{t('board.detail.dependsOn')}</dt>
         <dd class="detail-depends">
-          <select aria-label={t('board.detail.dependsOn')} value={task.dependsOn} onchange={(e) => onUpdate({ dependsOn: e.currentTarget.value })}>
+          <select aria-label={t('board.detail.dependsOn')} disabled={readOnly} value={task.dependsOn} onchange={(e) => onUpdate({ dependsOn: e.currentTarget.value })}>
             <option value="-">{t('board.detail.none')}</option>
             {#each tasks.filter((other) => other.id !== task.id) as other (other.id)}
               <option value={other.id}>{other.id} · {other.title}</option>
@@ -368,6 +379,7 @@
             min="0"
             max="100"
             aria-label={t('board.detail.progressPercent')}
+            disabled={readOnly}
             value={task.progress}
             onchange={(e) => numberField(e.currentTarget, 'progress', 0, 100)}
           />

@@ -3,11 +3,12 @@
 
   interface Props {
     tasks: BoardTask[];
+    readOnly?: boolean;
     onUpdateTask: (id: string, patch: Partial<BoardTask>) => void;
     onSelectComments: (id: string) => void;
   }
 
-  let { tasks, onUpdateTask, onSelectComments }: Props = $props();
+  let { tasks, readOnly = false, onUpdateTask, onSelectComments }: Props = $props();
 
   const DAY_WIDTH = 36;
   const ROW_HEIGHT = 36;
@@ -55,6 +56,7 @@
   let dragging = $state<{ id: string; startX: number; origStart: string } | null>(null);
 
   function onBarPointerDown(e: PointerEvent, task: BoardTask) {
+    if (readOnly) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragging = { id: task.id, startX: e.clientX, origStart: task.start };
   }
