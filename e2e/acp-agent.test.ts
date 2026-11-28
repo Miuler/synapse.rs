@@ -520,6 +520,36 @@ it('respuesta con tareas: casillas, copiar como Markdown y con formato, copiar s
   await s.browser.waitUntil(async () => !!(await s.browser.execute(() => (window as any).__copied['text/plain'])), { timeout: 5_000 });
   expect(await s.browser.execute(() => (window as any).__copied['text/plain'])).toBe(`## Avance\n\n${list}`);
 
+  // Clic derecho sobre un bloque: «Copiar bloque». Eventos sintéticos (ver la prueba de herramientas)
+  const aim = (selector: string) =>
+    s.browser.execute((q: string) => {
+      const el = document.querySelector(`.acp-agent-wrap[data-test="tareas"] .acp-msg.agent ${q}`)!;
+      const box = el.getBoundingClientRect();
+      const at = { bubbles: true, cancelable: true, button: 2, clientX: box.x + 10, clientY: box.y + 5 };
+      el.dispatchEvent(new PointerEvent('pointerdown', at));
+      // `false` si alguien se quedó con el menú (si no, saldría el del sistema)
+      return !el.dispatchEvent(new MouseEvent('contextmenu', at));
+    }, selector) as Promise<boolean>;
+  await s.browser.execute(() => {
+    (window as any).__copied = {};
+    window.getSelection()!.removeAllRanges();
+  });
+  expect(await aim('li strong')).toBe(true);
+  const blockItem = s.browser.$('.acp-context-item*=Copiar bloque');
+  await blockItem.waitForExist({ timeout: 5_000, timeoutMsg: 'no salió el menú de la respuesta' });
+  await blockItem.click();
+  await s.browser.waitUntil(async () => !!(await s.browser.execute(() => (window as any).__copied['text/plain'])), { timeout: 5_000 });
+  expect(await s.browser.execute(() => (window as any).__copied['text/plain'])).toBe(list);
+  expect(await s.browser.execute(() => (window as any).__copied['text/html'])).toContain('<strong>02.</strong>');
+  expect(await s.browser.execute(() => (window as any).__copied['text/html'])).not.toContain('<h2>');
+  await s.browser.waitUntil(async () => (await count('.acp-context-menu')) === 0, { timeout: 5_000 });
+  expect(await count('.acp-copy-target')).toBe(0);
+  // Con texto marcado queda el menú del sistema
+  await s.browser.execute(() => window.getSelection()!.selectAllChildren(document.querySelector('.acp-agent-wrap[data-test="tareas"] .acp-msg.agent h2')!));
+  expect(await aim('h2')).toBe(false);
+  expect(await count('.acp-context-menu')).toBe(0);
+  await s.browser.execute(() => window.getSelection()!.removeAllRanges());
+
   // Zoom del chat: Ctrl++ con el foco en los mensajes, Ctrl+0 vuelve
   const zoom = () => s.browser.execute(() => (document.querySelector('.acp-messages') as HTMLElement).style.zoom) as Promise<string>;
   await s.browser.execute(() => (document.querySelector('.acp-messages') as HTMLElement).focus());
@@ -799,6 +829,32 @@ it('muestra «Razonamiento…» al colapsar y evita espacio extra al expandir an
   expect(expanded.gapPx).toBeGreaterThanOrEqual(0);
   expect(expanded.gapPx).toBeLessThanOrEqual(14);
 }, 30_000);
+
+it('clic derecho en una herramienta: «Copiar» copia su nombre y detalles sin desplegarla', async () => {
+  await s.browser.execute(() => {
+    const w = window as any;
+    w.__plain = '';
+    navigator.clipboard.writeText = async (t: string) => {
+      w.__plain = t;
+    };
+  });
+  // Evento sintético: el clic derecho de WebKitWebDriver despliega la herramienta y deja el teclado mal
+  await s.browser.execute(() => {
+    const summary = document.querySelector('.acp-section.open .acp-tool summary')!;
+    const box = summary.getBoundingClientRect();
+    summary.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: box.x + 40, clientY: box.y + 5 }));
+  });
+  const item = s.browser.$('.acp-context-item*=Copiar');
+  await item.waitForExist({ timeout: 5_000, timeoutMsg: 'no salió el menú' });
+  await item.click();
+  const title = (await s.browser.execute(() => document.querySelector('.acp-section.open .acp-tool-title')!.textContent)) as string;
+  await s.browser.waitUntil(async () => ((await s.browser.execute(() => (window as any).__plain)) as string).startsWith(title), {
+    timeout: 5_000,
+    timeoutMsg: 'no se copió la herramienta',
+  });
+  expect(await s.browser.execute(() => (window as any).__plain)).not.toContain('no envió más detalles');
+  expect(await s.browser.execute(() => (document.querySelector('.acp-section.open .acp-tool') as HTMLDetailsElement).open)).toBe(false);
+}, 60_000);
 
 it('soporta elicitation/create en modo form y modo url', async () => {
   const input = s.browser.$('.acp-input textarea');

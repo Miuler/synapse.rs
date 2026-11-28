@@ -184,6 +184,9 @@ export const en = {
   },
   replyCopy: {
     copy: 'Copy',
+    selection: 'Copy selection',
+    block: 'Copy block',
+    reply: 'Copy reply',
     done: 'Copied',
     hint: 'Copy as Markdown; where formatting is accepted (e-mail, Teams) it pastes formatted',
   },

@@ -185,6 +185,9 @@ export const es: TranslationSchema = {
   },
   replyCopy: {
     copy: 'Copiar',
+    selection: 'Copiar selección',
+    block: 'Copiar bloque',
+    reply: 'Copiar respuesta',
     done: 'Copiado',
     hint: 'Copiar como Markdown; donde se admite formato (correo, Teams) se pega con formato',
   },

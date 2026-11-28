@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Agent chat: right-click a reply to «Copy block» (the paragraph, list, table or code under the pointer, as Markdown and formatted) or «Copy reply». With text selected, or over a link or image, the system menu appears as before.
+- Agent chat: right-click a tool in the log to copy it (name, input and output), or just the selected text.
 - Clicking an agent notification (turn finished, permission or question) brings Synapse to the front and shows that conversation (Linux; on Hyprland the window is focused through the compositor).
 - `index.md` files show the empty tab background as a very faint, blurred watermark; themes can change it with `--index-wallpaper-blur` and `--index-wallpaper-opacity`.
 - Git log: «Merge “branch” into “current”» in the menu of a commit that is not in the current branch. If there are conflicts, a JetBrains-style dialog lists the files (diff, accept yours, accept theirs or merge; ↑/↓ and Enter), shows what changed in a file (also in one that one side deleted, to see what would be lost) and opens a three-pane editor (yours, result, theirs) where each change is applied or ignored, the non-conflicting ones can be applied at once, the result can be edited by hand, and `F7` / `Shift+F7` move between changes. The merge is then committed (and can be undone from the log) or aborted; one left unfinished, also from the terminal, can be resumed from the log.

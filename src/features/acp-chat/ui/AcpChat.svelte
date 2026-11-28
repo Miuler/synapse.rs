@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '@shared/lib/i18n';
+  import { ContextMenu } from 'bits-ui';
   import { internalDragPaths, NATIVE_DROP, type NativeDrop } from '@shared/lib/native-drop';
   import {
     agentStore,
@@ -54,7 +55,7 @@
   import { tick, untrack } from 'svelte';
   import { OctopusIcon } from '@shared/ui/icons';
   import { renderAgentMarkdown, renderUserMarkdown, vaultPathOfLink, formatRaw } from '../lib/markdown';
-  import { blockCopy } from '../lib/copy-blocks';
+  import { blockCopy, singleBlockCopy } from '../lib/copy-blocks';
   import { taskAwareCopy, richCopyOfElement, writeRichClipboard } from '@shared/lib/rich-copy';
   import { appSettings } from '@entities/settings';
   import { stepViewerZoom } from '@shared/lib/viewer-zoom';
@@ -177,6 +178,47 @@
   function copyReply(id: string, text: string, button: HTMLElement) {
     const msg = button.closest('.acp-agent-wrap')?.querySelector<HTMLElement>('.acp-msg.agent');
     if (msg) writeRichClipboard({ html: richCopyOfElement(msg).html, text }).then((ok) => ok && flagCopied(id));
+  }
+  // Clic derecho en una herramienta: copiar lo marcado dentro de ella, o todo (nombre, entrada y salida)
+  let toolMenu = $state<{ el: HTMLElement; selection: string } | null>(null);
+  function openToolMenu(el: HTMLElement) {
+    const sel = window.getSelection();
+    const inside = !!sel?.anchorNode && el.contains(sel.anchorNode);
+    toolMenu = { el, selection: inside ? sel.toString() : '' };
+  }
+  /** El texto de una herramienta, esté o no desplegada, con una línea por parte. */
+  function toolText(el: HTMLElement | undefined): string {
+    if (!el) return '';
+    const parts = [...el.children].filter((c) => c.tagName !== 'SUMMARY' && !c.classList.contains('empty'));
+    const text = (c: Element) =>
+      c.classList.contains('acp-diff') ? [...c.children].map((line) => line.textContent).join('\n') : c.textContent;
+    return [el.querySelector('.acp-tool-title'), ...parts].map((c) => (c ? text(c) : '')).join('\n');
+  }
+  function copyPlain(text: string) {
+    navigator.clipboard?.writeText(text).catch(() => {});
+  }
+  // Clic derecho en una respuesta: copiar el bloque que hay debajo, o la respuesta entera
+  let replyMenu = $state<{ id: number; message: HTMLElement; block: Element | null } | null>(null);
+  /** Al pulsar el botón derecho, antes de que salga el menú: decide cuál sale. */
+  function aimReplyMenu(e: PointerEvent, id: number) {
+    if (e.button !== 2) return;
+    const message = e.currentTarget as HTMLElement;
+    const target = e.target as Element;
+    // Con texto marcado, o sobre un enlace o una imagen, queda el menú del sistema: su «Copiar» ya
+    // lleva el Markdown de los bloques completos
+    if (window.getSelection()?.isCollapsed === false || target.closest('a, img')) {
+      replyMenu = null;
+      return;
+    }
+    let block: Element | null = target;
+    while (block && block.parentElement !== message) block = block.parentElement;
+    replyMenu = { id, message, block };
+  }
+  function copyBlock(source: string) {
+    if (replyMenu?.block) void writeRichClipboard(singleBlockCopy(replyMenu.message, replyMenu.block, source));
+  }
+  function copyWholeReply(source: string) {
+    if (replyMenu) void writeRichClipboard({ html: richCopyOfElement(replyMenu.message).html, text: source });
   }
   const replySource = (id: string) => {
     const item = conv?.items.find((i) => String(i.id) === id);
@@ -819,7 +861,27 @@
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
           <div class="acp-agent-wrap">
             <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-            <div class="acp-msg agent markdown" data-reply={item.id} onclick={onMessageClick}>{@html renderAgentMarkdown(item.text)}</div>
+            <!-- El bloque que se copiaría se marca mientras el menú está abierto -->
+            <ContextMenu.Root onOpenChange={(open) => replyMenu?.block?.classList.toggle('acp-copy-target', open)}>
+              <ContextMenu.Trigger disabled={replyMenu?.id !== item.id}>
+                {#snippet child({ props })}
+                  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+                  <div {...props} class="acp-msg agent markdown" data-reply={item.id} onclick={onMessageClick} onpointerdowncapture={(e) => aimReplyMenu(e, item.id)}>{@html renderAgentMarkdown(item.text)}</div>
+                {/snippet}
+              </ContextMenu.Trigger>
+              <ContextMenu.Portal>
+                <ContextMenu.Content class="acp-context-menu">
+                  {#if replyMenu?.block}
+                    <ContextMenu.Item class="acp-context-item" onSelect={() => copyBlock(item.text)}>
+                      <TextSelect size={13} /> {t('replyCopy.block')}
+                    </ContextMenu.Item>
+                  {/if}
+                  <ContextMenu.Item class="acp-context-item" onSelect={() => copyWholeReply(item.text)}>
+                    <Copy size={13} /> {t('replyCopy.reply')}
+                  </ContextMenu.Item>
+                </ContextMenu.Content>
+              </ContextMenu.Portal>
+            </ContextMenu.Root>
             <div class="acp-msg-actions">
               <button type="button" class="acp-copy-reply" title={t('replyCopy.hint')} onclick={(e) => copyReply(item.id, item.text, e.currentTarget)}>
                 {#if copied === item.id}<Check size={11} /> {t('replyCopy.done')}{:else}<Copy size={11} /> {t('replyCopy.copy')}{/if}
@@ -835,40 +897,58 @@
             <div class="acp-thought-body">{item.text.trim()}</div>
           </details>
         {:else if item.type === 'tool'}
-          <details class="acp-tool" data-status={item.status ?? ''}>
-            <summary>
-              <Wrench size={13} />
-              <span class="acp-tool-title">{item.title}</span>
-              {#if item.status}<span class="acp-tool-status">{item.status}</span>{/if}
-            </summary>
-            {#if item.kind}<div class="acp-tool-loc">Tipo: {item.kind}</div>{/if}
-            {#each item.locations as loc, i (i)}
-              <div class="acp-tool-loc">{relOf(loc.path)}{loc.line ? `:${loc.line}` : ''}</div>
-            {/each}
-            {#if item.rawInput != null}
-              <div class="acp-tool-label">Entrada</div>
-              <pre class="acp-tool-text">{formatRaw(item.rawInput)}</pre>
-            {/if}
-            {#each item.content as c, i (i)}
-              {#if c.type === 'diff'}
-                <div class="acp-diff">
-                  <div class="acp-diff-path">{relOf(c.path ?? '')}</div>
-                  {#each diffLines(c) as l, j (j)}
-                    <div class="acp-diff-line {l.sign === '+' ? 'add' : 'del'}">{l.sign} {l.text}</div>
+          <ContextMenu.Root>
+            <ContextMenu.Trigger>
+              {#snippet child({ props })}
+                <details {...props} class="acp-tool" data-status={item.status ?? ''} oncontextmenucapture={(e) => openToolMenu(e.currentTarget)}>
+                  <summary>
+                    <Wrench size={13} />
+                    <span class="acp-tool-title">{item.title}</span>
+                    {#if item.status}<span class="acp-tool-status">{item.status}</span>{/if}
+                  </summary>
+                  {#if item.kind}<div class="acp-tool-loc">Tipo: {item.kind}</div>{/if}
+                  {#each item.locations as loc, i (i)}
+                    <div class="acp-tool-loc">{relOf(loc.path)}{loc.line ? `:${loc.line}` : ''}</div>
                   {/each}
-                </div>
-              {:else if c.text}
-                <pre class="acp-tool-text">{c.text}</pre>
-              {/if}
-            {/each}
-            {#if item.rawOutput != null}
-              <div class="acp-tool-label">Salida</div>
-              <pre class="acp-tool-text">{formatRaw(item.rawOutput)}</pre>
-            {/if}
-            {#if item.rawInput == null && item.rawOutput == null && !item.content.length && !item.locations.length}
-              <div class="acp-tool-loc">El agente no envió más detalles de esta herramienta.</div>
-            {/if}
-          </details>
+                  {#if item.rawInput != null}
+                    <div class="acp-tool-label">Entrada</div>
+                    <pre class="acp-tool-text">{formatRaw(item.rawInput)}</pre>
+                  {/if}
+                  {#each item.content as c, i (i)}
+                    {#if c.type === 'diff'}
+                      <div class="acp-diff">
+                        <div class="acp-diff-path">{relOf(c.path ?? '')}</div>
+                        {#each diffLines(c) as l, j (j)}
+                          <div class="acp-diff-line {l.sign === '+' ? 'add' : 'del'}">{l.sign} {l.text}</div>
+                        {/each}
+                      </div>
+                    {:else if c.text}
+                      <pre class="acp-tool-text">{c.text}</pre>
+                    {/if}
+                  {/each}
+                  {#if item.rawOutput != null}
+                    <div class="acp-tool-label">Salida</div>
+                    <pre class="acp-tool-text">{formatRaw(item.rawOutput)}</pre>
+                  {/if}
+                  {#if item.rawInput == null && item.rawOutput == null && !item.content.length && !item.locations.length}
+                    <div class="acp-tool-loc empty">El agente no envió más detalles de esta herramienta.</div>
+                  {/if}
+                </details>
+              {/snippet}
+            </ContextMenu.Trigger>
+            <ContextMenu.Portal>
+              <ContextMenu.Content class="acp-context-menu">
+                {#if toolMenu?.selection}
+                  <ContextMenu.Item class="acp-context-item" onSelect={() => copyPlain(toolMenu?.selection ?? '')}>
+                    <TextSelect size={13} /> {t('replyCopy.selection')}
+                  </ContextMenu.Item>
+                {/if}
+                <ContextMenu.Item class="acp-context-item" onSelect={() => copyPlain(toolText(toolMenu?.el))}>
+                  <Copy size={13} /> {t('replyCopy.copy')}
+                </ContextMenu.Item>
+              </ContextMenu.Content>
+            </ContextMenu.Portal>
+          </ContextMenu.Root>
         {:else if item.type === 'permission'}
           <div class="acp-permission" class:answered={item.answered !== null}>
             <div class="acp-permission-title"><ShieldAlert size={14} /> {item.request.title}</div>
@@ -1600,6 +1680,34 @@
   .acp-plan-entry[data-status='in_progress'] {
     color: var(--accent);
     font-weight: 600;
+  }
+  .acp-msg.agent :global(.acp-copy-target) {
+    outline: 1px dashed var(--accent, #0969da);
+    outline-offset: 2px;
+  }
+  :global(.acp-context-menu) {
+    min-width: 170px;
+    padding: 4px;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 8px;
+    box-shadow: var(--popover-shadow, 0 8px 24px rgba(0, 0, 0, 0.12));
+    z-index: 9999;
+    outline: none;
+  }
+  :global(.acp-context-item) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+    color: var(--text-primary, #1f2328);
+    cursor: pointer;
+    outline: none;
+  }
+  :global(.acp-context-item[data-highlighted]) {
+    background: var(--bg-secondary, #f6f8fa);
   }
   .acp-tool summary {
     display: flex;

@@ -47,22 +47,39 @@ export function blockCopy(
     const selected = selectedBlocks(range, message);
     const source = selected && sourceOf(message.dataset.reply ?? '');
     if (!selected || !source) continue;
-    const [first, last] = selected;
-    // Qué trozos del Markdown pintan el primer y el último elemento seleccionado
-    const blocks = markdownBlocks(source);
-    let element = 0;
-    let from = -1;
-    let to = -1;
-    for (const [i, block] of blocks.entries()) {
-      const end = element + block.elements;
-      if (first >= element && first < end) from = i;
-      if (last >= element && last < end) to = i;
-      element = end;
-    }
-    // Si las cuentas no cuadran (HTML suelto en la respuesta), se copia como siempre
-    if (element !== message.children.length || from < 0 || to < 0) return null;
-    const text = blocks.slice(from, to + 1).map((b) => b.raw).join('').replace(/^\n+|\s+$/g, '');
-    return { html: richCopyOfNodes([...message.children].slice(first, last + 1)).html, text };
+    return copyOfBlocks(message, selected[0], selected[1], source);
   }
   return null;
+}
+
+/**
+ * Los elementos `first`…`last` de la respuesta `message`: su trozo del Markdown `source` como texto y
+ * en HTML limpio; `null` si las cuentas no cuadran (HTML suelto en la respuesta).
+ */
+function copyOfBlocks(message: Element, first: number, last: number, source: string): { html: string; text: string } | null {
+  // Qué trozos del Markdown pintan el primer y el último elemento
+  const blocks = markdownBlocks(source);
+  let element = 0;
+  let from = -1;
+  let to = -1;
+  for (const [i, block] of blocks.entries()) {
+    const end = element + block.elements;
+    if (first >= element && first < end) from = i;
+    if (last >= element && last < end) to = i;
+    element = end;
+  }
+  if (element !== message.children.length || from < 0 || to < 0) return null;
+  const text = blocks.slice(from, to + 1).map((b) => b.raw).join('').replace(/^\n+|\s+$/g, '');
+  return { html: richCopyOfNodes([...message.children].slice(first, last + 1)).html, text };
+}
+
+/**
+ * Lo que copiar de un solo bloque de una respuesta: su Markdown y su HTML; el código, tal cual (sin las
+ * comillas). Si no se puede saber su Markdown, su texto.
+ */
+export function singleBlockCopy(message: Element, block: Element, source: string): { html: string; text: string } {
+  const plain = richCopyOfNodes([block]);
+  if (block.tagName === 'PRE') return { html: plain.html, text: (block.textContent ?? '').replace(/\n$/, '') };
+  const index = [...message.children].indexOf(block);
+  return copyOfBlocks(message, index, index, source) ?? plain;
 }
