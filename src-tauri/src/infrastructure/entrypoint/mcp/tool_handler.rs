@@ -208,6 +208,52 @@ pub struct McpToolHandler<R: NoteRepository, I: FullTextIndex + ?Sized, G: Versi
     /// Otras bóvedas del usuario que se pueden consultar (solo lectura) y a quién pedir permiso.
     vault_catalog: Option<Arc<dyn VaultCatalog>>,
     prompter: Option<Arc<dyn UserPrompter>>,
+    /// Quien llama es un agente abierto por Synapse (trajo su token de sesión).
+    private_tools: bool,
+}
+
+/// Prefijo de las herramientas privadas: configurar Synapse junto al usuario.
+pub const PRIVATE_TOOL_PREFIX: &str = "config_";
+
+const NOTHING_OPEN: &str = "No hay ninguna configuración abierta: pide al usuario que abra la \
+     configuración del origen del tablero.";
+
+/// Las herramientas privadas, que solo se listan para los agentes que abre Synapse.
+fn config_tools() -> Vec<McpTool> {
+    let tool = |name: &str, description: &str, read_only: bool| McpTool {
+        name: format!("{PRIVATE_TOOL_PREFIX}{name}"),
+        description: description.to_string(),
+        annotations: Some(McpToolAnnotations {
+            read_only_hint: Some(read_only),
+            ..McpToolAnnotations::read_only()
+        }),
+        input_schema: json!({"type": "object", "properties": {}}),
+    };
+    vec![
+        tool(
+            "get_context",
+            "Configuración de tablero abierta en Synapse y su borrador: conexión (sin credenciales), \
+             ámbito, filtro o consulta, estados y columnas.",
+            true,
+        ),
+        tool(
+            "describe_source",
+            "Lenguaje de consulta, criterios y valores que admite el origen de la configuración abierta.",
+            true,
+        ),
+        tool(
+            "test_query",
+            "Prueba en solo lectura un filtro o consulta con la conexión de la configuración abierta: \
+             recuento y una muestra, o el error del proveedor.",
+            true,
+        ),
+        tool(
+            "update_draft",
+            "Cambia el filtro, la consulta o los estados del borrador abierto; no guarda: lo decide \
+             el usuario.",
+            false,
+        ),
+    ]
 }
 
 /// Herramientas de solo lectura que aceptan `vault` para consultar otra bóveda.
@@ -252,7 +298,14 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             caller: None,
             vault_catalog: None,
             prompter: None,
+            private_tools: false,
         }
+    }
+
+    /// Ofrece las herramientas privadas: solo a quien trae el token de una sesión de Synapse.
+    pub fn with_private_tools(mut self, allowed: bool) -> Self {
+        self.private_tools = allowed;
+        self
     }
 
     /// Permite consultar otras bóvedas (`list_vaults` y el parámetro `vault`); `prompter` pregunta
@@ -1104,6 +1157,9 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         if !cfg!(feature = "develop") {
             result.tools.retain(|t| t.name != "report_feedback");
         }
+        if self.private_tools {
+            result.tools.extend(config_tools());
+        }
         result
     }
 
@@ -1170,8 +1226,21 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             },
             "send_to_conversation" => self.execute_send_to_conversation(args),
             "report_feedback" if cfg!(feature = "develop") => self.execute_report_feedback(args),
+            other if other.starts_with(PRIVATE_TOOL_PREFIX) => self.execute_config_tool(other),
             other => McpCallToolResult::error(format!("Herramienta desconocida: '{}'", other)),
         }
+    }
+
+    fn execute_config_tool(&self, name: &str) -> McpCallToolResult {
+        if !self.private_tools {
+            return McpCallToolResult::error(format!(
+                "'{name}' solo está disponible para los agentes que abre Synapse"
+            ));
+        }
+        if !config_tools().iter().any(|tool| tool.name == name) {
+            return McpCallToolResult::error(format!("Herramienta desconocida: '{name}'"));
+        }
+        McpCallToolResult::error(NOTHING_OPEN)
     }
 
     // ==========================================

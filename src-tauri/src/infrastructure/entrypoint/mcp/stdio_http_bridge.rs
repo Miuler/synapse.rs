@@ -4,6 +4,7 @@
 //! JSON-RPC de `stdin` se reenvía por POST al servidor MCP de la app abierta y la respuesta se
 //! escribe en `stdout`. Así todos los agentes usan el mismo índice y estado que la ventana.
 
+use super::server::{SESSION_ENV, SESSION_HEADER};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::time::Duration;
@@ -20,12 +21,11 @@ fn split_url(url: &str) -> Result<(String, String), String> {
     Ok((addr.to_string(), path.to_string()))
 }
 
-/// Envía un mensaje JSON-RPC y devuelve el cuerpo de la respuesta (vacío para notificaciones).
-pub fn post(url: &str, body: &str) -> Result<String, String> {
-    post_with(url, body, &[], Duration::from_secs(300))
-}
+/// Lo que se espera una respuesta del MCP.
+const TIMEOUT: Duration = Duration::from_secs(300);
 
-/// Como [`post`], con cabeceras extra y un tiempo máximo de espera.
+/// Envía un mensaje JSON-RPC, con cabeceras extra y un tiempo máximo de espera, y devuelve el cuerpo
+/// de la respuesta (vacío para notificaciones).
 pub fn post_with(
     url: &str,
     body: &str,
@@ -74,14 +74,26 @@ pub fn post_with(
     Ok(String::from_utf8_lossy(&buf).into_owned())
 }
 
-/// Bucle del puente: una línea de `stdin`, un POST, una línea a `stdout`.
-pub fn run(url: &str, input: impl BufRead, mut output: impl Write) -> Result<(), String> {
+/// Bucle del puente: una línea de `stdin`, un POST, una línea a `stdout`. El token de sesión que
+/// Synapse le deja en el entorno viaja como cabecera.
+pub fn run(url: &str, input: impl BufRead, output: impl Write) -> Result<(), String> {
+    let token = std::env::var(SESSION_ENV).ok();
+    run_as(url, token.as_deref(), input, output)
+}
+
+fn run_as(
+    url: &str,
+    token: Option<&str>,
+    input: impl BufRead,
+    mut output: impl Write,
+) -> Result<(), String> {
+    let headers: Vec<(&str, &str)> = token.map(|t| (SESSION_HEADER, t)).into_iter().collect();
     for line in input.lines() {
         let line = line.map_err(|e| e.to_string())?;
         if line.trim().is_empty() {
             continue;
         }
-        match post(url, line.trim()) {
+        match post_with(url, line.trim(), &headers, TIMEOUT) {
             Ok(resp) if !resp.trim().is_empty() => {
                 writeln!(output, "{}", resp.trim()).map_err(|e| e.to_string())?;
                 output.flush().map_err(|e| e.to_string())?;
@@ -109,6 +121,28 @@ pub fn run(url: &str, input: impl BufRead, mut output: impl Write) -> Result<(),
 mod tests {
     use super::*;
     use std::net::TcpListener;
+
+    #[test]
+    fn el_token_de_sesion_viaja_como_cabecera() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut head = String::new();
+            while !head.ends_with("\r\n\r\n") {
+                reader.read_line(&mut head).unwrap();
+            }
+            let mut body = [0; 2];
+            reader.read_exact(&mut body).unwrap();
+            write!(stream, "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
+            head
+        });
+        let url = format!("http://127.0.0.1:{port}/mcp");
+        run_as(&url, Some("secreto"), "{}\n".as_bytes(), Vec::new()).unwrap();
+        let head = server.join().unwrap();
+        assert!(head.contains("x-synapse-session: secreto\r\n"), "{head}");
+    }
 
     #[test]
     fn reenvia_por_http_y_devuelve_la_respuesta() {

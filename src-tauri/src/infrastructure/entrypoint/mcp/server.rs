@@ -3,10 +3,11 @@ use crate::domain::note::note_repository::NoteRepository;
 use crate::domain::search::full_text_index::FullTextIndex;
 use crate::domain::version::version_control::VersionControl;
 use crate::infrastructure::entrypoint::mcp::dto::*;
-use crate::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
+use crate::infrastructure::entrypoint::mcp::tool_handler::{McpToolHandler, PRIVATE_TOOL_PREFIX};
 use crate::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use crate::infrastructure::repository::git::version_control_impl::VersionControlImpl;
 use serde_json::{Value, json};
+use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -14,6 +15,81 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+
+/// Cabecera HTTP con el token de sesión de un agente abierto por Synapse: abre las herramientas
+/// privadas. No figura en las cabeceras que admite el preflight, así que una página no puede enviarla.
+pub const SESSION_HEADER: &str = "x-synapse-session";
+/// El mismo token para el puente stdio: va en su entorno, nunca en sus argumentos.
+pub const SESSION_ENV: &str = "SYNAPSE_MCP_SESSION";
+
+#[derive(Default)]
+struct SessionOwner {
+    conversation: Option<String>,
+    session: Option<String>,
+}
+
+/// Los tokens de las sesiones de agentes abiertas. Solo viven en memoria.
+#[derive(Default)]
+pub struct SessionTokens(Mutex<HashMap<String, SessionOwner>>);
+
+impl SessionTokens {
+    fn owners(&self) -> std::sync::MutexGuard<'_, HashMap<String, SessionOwner>> {
+        self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Un token nuevo, válido desde ya: el agente puede usarlo mientras abre la sesión.
+    pub fn issue(&self, conversation: Option<&str>) -> String {
+        let token = port_registry::random_token();
+        let owner = SessionOwner {
+            conversation: conversation.map(str::to_string),
+            session: None,
+        };
+        self.owners().insert(token.clone(), owner);
+        token
+    }
+
+    /// La sesión quedó abierta con `token`: los anteriores de esa sesión o conversación dejan de valer.
+    pub fn bind(&self, token: &str, session: &str) {
+        let mut owners = self.owners();
+        let Some(mut owner) = owners.remove(token) else {
+            return;
+        };
+        owners.retain(|_, other| {
+            other.session.as_deref() != Some(session)
+                && (owner.conversation.is_none() || other.conversation != owner.conversation)
+        });
+        owner.session = Some(session.to_string());
+        owners.insert(token.to_string(), owner);
+    }
+
+    pub fn revoke(&self, token: &str) {
+        self.owners().remove(token);
+    }
+
+    pub fn revoke_session(&self, session: &str) {
+        self.owners()
+            .retain(|_, owner| owner.session.as_deref() != Some(session));
+    }
+
+    pub fn accepts(&self, token: &str) -> bool {
+        self.owners().contains_key(token)
+    }
+}
+
+pub fn session_tokens() -> &'static SessionTokens {
+    static TOKENS: std::sync::OnceLock<SessionTokens> = std::sync::OnceLock::new();
+    TOKENS.get_or_init(SessionTokens::default)
+}
+
+/// Si el cuerpo de un pedido llama a una herramienta privada.
+fn calls_private_tool(body: &str) -> bool {
+    serde_json::from_str::<Value>(body).is_ok_and(|request| {
+        request["method"] == "tools/call"
+            && request["params"]["name"]
+                .as_str()
+                .is_some_and(|name| name.starts_with(PRIVATE_TOOL_PREFIX))
+    })
+}
 
 /// Servidor MCP local que se comunica a través de entrada/salida estándar (stdio) con JSON-RPC 2.0.
 pub struct McpStdioServer<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> {
@@ -463,6 +539,8 @@ impl McpBackgroundRuntime {
         // Leer cabeceras HTTP
         let mut content_length = 0usize;
         let mut peer_token: Option<String> = None;
+        let mut session_token: Option<String> = None;
+        let mut from_web = false;
         loop {
             let mut line = String::new();
             if reader.read_line(&mut line)? == 0 || line == "\r\n" || line == "\n" {
@@ -475,6 +553,13 @@ impl McpBackgroundRuntime {
                 && k.trim().eq_ignore_ascii_case("x-synapse-token")
             {
                 peer_token = Some(v.trim().to_string());
+            }
+            if let Some((k, v)) = line.split_once(':') {
+                if k.trim().eq_ignore_ascii_case(SESSION_HEADER) {
+                    session_token = Some(v.trim().to_string());
+                }
+                // Los navegadores declaran el origen: desde una página no hay herramientas privadas
+                from_web |= k.trim().eq_ignore_ascii_case("origin");
             }
         }
 
@@ -581,7 +666,13 @@ impl McpBackgroundRuntime {
                 .with_diagram_renderer(provider.diagram_renderer())
                 .with_conversations(provider.conversation_hub(), caller.clone());
             let (catalog, prompter) = provider.vault_access();
-            let tool_handler = tool_handler.with_vaults(catalog, prompter);
+            let private = !from_web
+                && session_token
+                    .as_deref()
+                    .is_some_and(|token| session_tokens().accepts(token));
+            let tool_handler = tool_handler
+                .with_vaults(catalog, prompter)
+                .with_private_tools(private);
             let stdio_server = McpStdioServer::new(tool_handler);
 
             let started_at = now_unix_ms();
@@ -604,11 +695,16 @@ impl McpBackgroundRuntime {
                 );
             }
 
+            // Lo que toca las herramientas privadas se responde sin CORS
+            let cors = if session_token.is_some() || calls_private_tool(body_str.trim()) {
+                ""
+            } else {
+                "Access-Control-Allow-Origin: *\r\n"
+            };
             let header = format!(
                 "HTTP/1.1 200 OK\r\n\
                 Content-Type: application/json\r\n\
-                Access-Control-Allow-Origin: *\r\n\
-                Content-Length: {}\r\n\r\n",
+                {cors}Content-Length: {}\r\n\r\n",
                 response_body.len()
             );
             let _ = stream.write_all(header.as_bytes());
@@ -691,5 +787,125 @@ fn record_agent_mcp_call(
     let repo = crate::infrastructure::repository::file::agent_telemetry_repository_impl::AgentTelemetryRepositoryImpl::default();
     if let Err(e) = repo.record_mcp_call(&vault.to_string_lossy(), conv_id, call) {
         log::debug!("No se pudo registrar telemetría MCP para {conv_id}: {e}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Vault(PathBuf);
+
+    impl McpContextProvider for Vault {
+        fn get_context(&self) -> (Option<PathBuf>, Option<Arc<dyn FullTextIndex>>) {
+            (Some(self.0.clone()), None)
+        }
+    }
+
+    /// Un pedido tal cual llega por la red; devuelve la respuesta entera (cabeceras y cuerpo).
+    fn send(path: &str, headers: &[(&str, &str)], body: &str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let vault = Arc::new(Vault(std::env::temp_dir()));
+        let server = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            McpBackgroundRuntime::handle_http_client(stream, vault).unwrap();
+        });
+        let extra: String = headers.iter().map(|(k, v)| format!("{k}: {v}\r\n")).collect();
+        let mut stream = TcpStream::connect(addr).unwrap();
+        write!(
+            stream,
+            "POST {path} HTTP/1.1\r\n{extra}Content-Length: {}\r\n\r\n{body}",
+            body.len()
+        )
+        .unwrap();
+        let mut answer = String::new();
+        stream.read_to_string(&mut answer).unwrap();
+        server.join().unwrap();
+        answer
+    }
+
+    const LIST: &str = r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#;
+    const CALL: &str = r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"config_get_context","arguments":{}}}"#;
+    const REJECTED: &str = "solo está disponible para los agentes que abre Synapse";
+    const NOTHING_OPEN: &str = "No hay ninguna configuración abierta";
+
+    fn assert_rejected(headers: &[(&str, &str)]) {
+        let list = send("/mcp", headers, LIST);
+        assert!(list.contains("search_notes"), "{list}");
+        assert!(!list.contains("config_"), "{list}");
+        let call = send("/mcp", headers, CALL);
+        assert!(call.contains(REJECTED), "{call}");
+        assert!(!call.contains("Access-Control"), "{call}");
+    }
+
+    #[test]
+    fn un_cliente_sin_token_no_ve_ni_usa_las_privadas() {
+        assert_rejected(&[]);
+    }
+
+    #[test]
+    fn con_otro_token_tampoco() {
+        assert_rejected(&[(SESSION_HEADER, "inventado")]);
+        assert_rejected(&[(SESSION_HEADER, port_registry::instance_token())]);
+        assert_rejected(&[("x-synapse-token", port_registry::instance_token())]);
+    }
+
+    #[test]
+    fn el_token_de_una_sesion_las_abre_sin_cors() {
+        let token = session_tokens().issue(Some("conv-abre"));
+        let headers = [("X-Synapse-Session", token.as_str())];
+        let list = send("/mcp?conv=conv-abre", &headers, LIST);
+        for name in [
+            "config_get_context",
+            "config_describe_source",
+            "config_test_query",
+            "config_update_draft",
+        ] {
+            assert!(list.contains(name), "{name} en {list}");
+        }
+        assert!(!list.contains("Access-Control"), "{list}");
+        let call = send("/mcp", &headers, CALL);
+        assert!(call.contains(NOTHING_OPEN), "{call}");
+        assert!(!call.contains("Access-Control"), "{call}");
+    }
+
+    #[test]
+    fn desde_un_origen_web_se_rechazan_aun_con_token() {
+        let token = session_tokens().issue(None);
+        for origin in ["https://example.com", "null", "http://127.0.0.1:1420"] {
+            assert_rejected(&[(SESSION_HEADER, &token), ("Origin", origin)]);
+        }
+    }
+
+    #[test]
+    fn el_token_de_sesion_no_abre_el_canal_entre_instancias() {
+        let token = session_tokens().issue(None);
+        for header in [SESSION_HEADER, "x-synapse-token"] {
+            let answer = send("/peer", &[(header, &token)], "{}");
+            assert!(answer.starts_with("HTTP/1.1 403"), "{answer}");
+        }
+    }
+
+    #[test]
+    fn al_retomar_o_parar_el_token_anterior_deja_de_valer() {
+        let tokens = SessionTokens::default();
+        let first = tokens.issue(Some("c1"));
+        tokens.bind(&first, "s1");
+        let other = tokens.issue(Some("c2"));
+        tokens.bind(&other, "s2");
+        let resumed = tokens.issue(Some("c1"));
+        assert!(tokens.accepts(&first) && tokens.accepts(&resumed));
+        tokens.bind(&resumed, "s1");
+        assert!(!tokens.accepts(&first) && tokens.accepts(&resumed) && tokens.accepts(&other));
+        tokens.revoke_session("s1");
+        assert!(!tokens.accepts(&resumed) && tokens.accepts(&other));
+        // Sin conversación, cada sesión conserva el suyo
+        let (a, b) = (tokens.issue(None), tokens.issue(None));
+        tokens.bind(&a, "s3");
+        tokens.bind(&b, "s4");
+        assert!(tokens.accepts(&a) && tokens.accepts(&b));
+        tokens.revoke(&a);
+        assert!(!tokens.accepts(&a));
     }
 }

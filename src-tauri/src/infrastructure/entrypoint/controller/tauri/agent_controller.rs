@@ -7,6 +7,7 @@ use crate::domain::agent::{
 };
 use crate::infrastructure::config::agent_state::AgentState;
 use crate::infrastructure::config::state::AppState;
+use crate::infrastructure::entrypoint::mcp::server::{SESSION_ENV, SESSION_HEADER, session_tokens};
 use std::collections::BTreeMap;
 use tauri::State;
 
@@ -73,7 +74,11 @@ pub fn agent_delete_profile(state: State<'_, AgentState>, id: String) -> Result<
 /// El MCP de Synapse para el agente: siempre el de la instancia abierta (comparte índice y estado
 /// con la ventana). Se arranca si estaba apagado. Los agentes con MCP por HTTP se conectan directo;
 /// los que solo usan stdio, a través de `synapsers --mcp-proxy <url>`, que reenvía a la misma instancia.
-fn synapse_tools(app: &AppState, conversation: Option<&str>) -> Result<Vec<ToolServer>, String> {
+/// Devuelve también el token de sesión que abre las herramientas privadas.
+fn synapse_tools(
+    app: &AppState,
+    conversation: Option<&str>,
+) -> Result<(Vec<ToolServer>, String), String> {
     let status = app
         .mcp_runtime
         .start()
@@ -81,24 +86,37 @@ fn synapse_tools(app: &AppState, conversation: Option<&str>) -> Result<Vec<ToolS
     if !status.running {
         return Err("No se pudo iniciar el MCP de Synapse".into());
     }
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let token = session_tokens().issue(conversation);
+    let tools = tool_servers(&status.endpoint, conversation, &exe.to_string_lossy(), &token);
+    Ok((tools, token))
+}
+
+/// El token va en una cabecera o en el entorno del puente: nunca en la URL ni en los argumentos.
+fn tool_servers(
+    endpoint: &str,
+    conversation: Option<&str>,
+    exe: &str,
+    token: &str,
+) -> Vec<ToolServer> {
     // Cada conversación usa su propia URL del MCP, para saber quién habla con las demás
     let url = match conversation
         .filter(|c| c.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-'))
     {
-        Some(conv) => format!("{}?conv={conv}", status.endpoint),
-        None => status.endpoint,
+        Some(conv) => format!("{endpoint}?conv={conv}"),
+        None => endpoint.to_string(),
     };
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    Ok(vec![ToolServer {
+    vec![ToolServer {
         name: crate::infrastructure::integration::service::acp::agent_runner_impl::SYNAPSE_TOOLS
             .into(),
         http_url: Some(url.clone()),
+        http_headers: BTreeMap::from([(SESSION_HEADER.into(), token.into())]),
         process: Some(AgentLaunch {
-            command: exe.to_string_lossy().into_owned(),
+            command: exe.into(),
             args: vec!["--mcp-proxy".into(), url],
-            env: BTreeMap::new(),
+            env: BTreeMap::from([(SESSION_ENV.into(), token.into())]),
         }),
-    }])
+    }]
 }
 
 /// Indicaciones de inicio: el agente trabaja con el MCP de esta instancia de Synapse y, si el
@@ -149,11 +167,11 @@ pub async fn agent_start_session(
     fork: Option<bool>,
     conversation_id: Option<String>,
 ) -> Result<AgentSession, String> {
-    let tools = synapse_tools(&app, conversation_id.as_deref())?;
+    let (tools, token) = synapse_tools(&app, conversation_id.as_deref())?;
     let instructions = Some(session_instructions(
         feedback.unwrap_or(false) && cfg!(feature = "develop"),
     ));
-    state
+    let started = state
         .start_agent_session
         .execute(StartAgentSessionCommand {
             agent_id,
@@ -163,7 +181,12 @@ pub async fn agent_start_session(
             resume,
             fork: fork.unwrap_or(false),
         })
-        .await
+        .await;
+    match &started {
+        Ok(session) => session_tokens().bind(&token, &session.id),
+        Err(_) => session_tokens().revoke(&token),
+    }
+    started
 }
 
 #[tauri::command]
@@ -312,6 +335,7 @@ pub async fn agent_stop_session(
     state: State<'_, AgentState>,
     session_id: String,
 ) -> Result<(), String> {
+    session_tokens().revoke_session(&session_id);
     state
         .stop_agent_session
         .execute(StopAgentSessionCommand { session_id })
@@ -428,4 +452,26 @@ pub fn agent_set_process_limit(state: State<'_, AgentState>, agent_id: String, l
     state
         .set_agent_process_limit
         .execute(SetAgentProcessLimitCommand { agent_id, limit });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn el_token_no_va_en_la_url_ni_en_los_argumentos() {
+        let tools = tool_servers(
+            "http://127.0.0.1:4700/mcp",
+            Some("conv-1"),
+            "/bin/synapsers",
+            "secreto",
+        );
+        let server = &tools[0];
+        let process = server.process.as_ref().unwrap();
+        assert!(!server.http_url.as_ref().unwrap().contains("secreto"));
+        assert!(!process.command.contains("secreto"));
+        assert!(process.args.iter().all(|arg| !arg.contains("secreto")));
+        assert_eq!(server.http_headers[SESSION_HEADER], "secreto");
+        assert_eq!(process.env[SESSION_ENV], "secreto");
+    }
 }

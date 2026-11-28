@@ -114,9 +114,17 @@
 
 ## 7. Asistente de configuración
 
-- [ ] 7.1 Servir las herramientas `config_` solo a sesiones con su token, sin CORS, y entregarlo en `session/new` y
+- [x] 7.1 Servir las herramientas `config_` solo a sesiones con su token, sin CORS, y entregarlo en `session/new` y
   `session/load` (HTTP y puente stdio); verificar qué agentes admiten añadirlo al reanudar; pruebas en Rust de
   clientes sin token, con otro token y desde un origen web
+  Las cuatro herramientas se listan y, de momento, responden que no hay ninguna configuración abierta. El token va en la
+  cabecera `X-Synapse-Session` o en la variable `SYNAPSE_MCP_SESSION` del puente; vive en memoria, se retira al parar la
+  sesión y al retomar la conversación, y el registro de depuración de ACP lo oculta. Un agente que al retomar conservara
+  la sesión viva sin aceptar el token nuevo se quedaría sin estas herramientas. Reanudación: solo se revisó claude-acp
+  0.113.0 (el único instalado, leyendo su binario): `session/load` aplica los `mcpServers` nuevos y recrea la sesión viva
+  si cambiaron. Límite: ese adaptador pasa los `mcpServers` al CLI de Claude como argumento (`--mcp-config`), así que el
+  token se ve en la línea de órdenes de ese proceso; su SDK tiene la opción `mcpServersDelivery: "initialize"`, que lo
+  evitaría (sin probar ni aplicar)
 - [ ] 7.2 Implementar contexto, descripción, prueba de consulta limitada y cambio del borrador; pruebas contra
   servidor falso de errores, límites y de que ninguna respuesta incluye credenciales ni guarda nada
 - [ ] 7.3 Configuración del tablero no modal junto al chat, con los cambios del agente marcados y el aviso de qué

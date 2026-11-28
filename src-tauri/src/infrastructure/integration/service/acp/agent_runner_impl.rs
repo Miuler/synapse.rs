@@ -716,16 +716,29 @@ fn mcp_servers_for(tools: &[ToolServer], caps: &AgentCapabilities) -> Vec<Value>
         .iter()
         .filter_map(|t| match (&t.http_url, &t.process) {
             (Some(url), _) if caps.tools_over_http => {
-                Some(json!({"type": "http", "name": t.name, "url": url, "headers": []}))
+                Some(json!({
+                    "type": "http",
+                    "name": t.name,
+                    "url": url,
+                    "headers": name_value_list(&t.http_headers),
+                }))
             }
             (_, Some(p)) => Some(json!({
                 "name": t.name,
                 "command": p.command,
                 "args": p.args,
-                "env": p.env.iter().map(|(k, v)| json!({"name": k, "value": v})).collect::<Vec<_>>(),
+                "env": name_value_list(&p.env),
             })),
             _ => None,
         })
+        .collect()
+}
+
+/// Cabeceras y variables de entorno, como las pide ACP.
+fn name_value_list(values: &std::collections::BTreeMap<String, String>) -> Vec<Value> {
+    values
+        .iter()
+        .map(|(name, value)| json!({"name": name, "value": value}))
         .collect()
 }
 
@@ -1294,10 +1307,11 @@ mod tests {
         vec![ToolServer {
             name: "synapse".into(),
             http_url: Some("http://127.0.0.1:4700/mcp".into()),
+            http_headers: [("x-clave".to_string(), "uno".to_string())].into(),
             process: Some(AgentLaunch {
                 command: "/bin/synapsers".into(),
                 args: vec!["--mcp".into()],
-                ..Default::default()
+                env: [("CLAVE".to_string(), "dos".to_string())].into(),
             }),
         }]
     }
@@ -1311,6 +1325,7 @@ mod tests {
         let servers = mcp_servers_for(&synapse_tools(), &caps);
         assert_eq!(servers[0]["type"], "http");
         assert_eq!(servers[0]["url"], "http://127.0.0.1:4700/mcp");
+        assert_eq!(servers[0]["headers"], json!([{"name": "x-clave", "value": "uno"}]));
     }
 
     #[test]
@@ -1318,6 +1333,7 @@ mod tests {
         let servers = mcp_servers_for(&synapse_tools(), &AgentCapabilities::default());
         assert_eq!(servers[0]["command"], "/bin/synapsers");
         assert_eq!(servers[0]["args"][0], "--mcp");
+        assert_eq!(servers[0]["env"], json!([{"name": "CLAVE", "value": "dos"}]));
         assert!(servers[0].get("type").is_none());
     }
 
@@ -1445,6 +1461,7 @@ mod tests {
                 vec![ToolServer {
                     name: SYNAPSE_TOOLS.into(),
                     http_url: None,
+                    http_headers: Default::default(),
                     process: Some(AgentLaunch {
                         command: bin,
                         args: vec!["--mcp".into(), "--vault".into(), cwd.clone()],

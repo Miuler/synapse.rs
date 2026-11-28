@@ -18,28 +18,34 @@ pub fn get_global_registry_path() -> PathBuf {
 /// registro (en el HOME del usuario), así que solo los procesos del usuario pueden usarlo.
 pub fn instance_token() -> &'static str {
     static TOKEN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    TOKEN.get_or_init(|| {
-        use sha2::{Digest, Sha256};
-        let mut seed = [0u8; 32];
-        let random = std::fs::File::open("/dev/urandom")
-            .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut seed))
-            .is_ok();
-        let mut hasher = Sha256::new();
-        hasher.update(seed);
-        if !random {
-            hasher.update(format!(
-                "{}-{:?}",
-                std::process::id(),
-                std::time::SystemTime::now()
-            ));
-            hasher.update(format!("{:p}", &seed));
-        }
-        hasher
-            .finalize()
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect()
-    })
+    TOKEN.get_or_init(random_token)
+}
+
+/// Un secreto aleatorio nuevo (64 dígitos hexadecimales).
+pub fn random_token() -> String {
+    use sha2::{Digest, Sha256};
+    let mut seed = [0u8; 32];
+    let random = std::fs::File::open("/dev/urandom")
+        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut seed))
+        .is_ok();
+    let mut hasher = Sha256::new();
+    hasher.update(seed);
+    if !random {
+        // Sin /dev/urandom: que dos tokens seguidos tampoco coincidan
+        static COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        hasher.update(format!(
+            "{}-{:?}-{}",
+            std::process::id(),
+            std::time::SystemTime::now(),
+            COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        hasher.update(format!("{:p}", &seed));
+    }
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 /// Otra instancia de Synapse viva, con su canal `/peer`.
