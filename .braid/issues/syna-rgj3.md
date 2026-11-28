@@ -3,13 +3,14 @@ schema_version: 9
 id: syna-rgj3
 title: 'Tableros: traducir los textos fijos en español del editor'
 priority: P3
-status: open
+status: done
 deps: []
 tags:
 - tableros
 - i18n
 owner: null
 created_at: 2026-11-27T14:03:30.206148697Z
+completed_at: 2026-11-28T04:44:43.243007433Z
 acceptance:
 - Con la aplicación en inglés el editor de tableros no muestra textos en español
 ---

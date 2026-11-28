@@ -3,13 +3,14 @@ schema_version: 9
 id: syna-kxih
 title: 'Tableros: un archivo por tarea en la carpeta protegida del tablero'
 priority: P2
-status: open
+status: done
 deps:
 - syna-nvve
 tags:
 - tableros
 owner: null
 created_at: 2026-11-27T15:14:49.684227839Z
+completed_at: 2026-11-28T04:44:43.216247265Z
 acceptance:
 - Cada tarea se guarda en su archivo y los tableros anteriores se convierten con confirmación
 - Ni el editor, ni el explorador, ni las herramientas MCP modifican la carpeta de un tablero, y no se puede desbloquear

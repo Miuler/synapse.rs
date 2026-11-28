@@ -3,7 +3,7 @@ schema_version: 9
 id: syna-e19k
 title: 'Tableros: el agente ayuda a configurar el origen con herramientas MCP privadas'
 priority: P2
-status: open
+status: done
 deps:
 - syna-2pmu
 tags:
@@ -12,6 +12,7 @@ tags:
 - agente
 owner: null
 created_at: 2026-11-27T15:17:32.645292141Z
+completed_at: 2026-11-28T04:44:43.232207284Z
 acceptance:
 - El agente integrado prueba y cambia el borrador de la consulta, y solo el usuario guarda
 - Sin el token de una sesión las herramientas no se listan ni se ejecutan, y ninguna devuelve credenciales

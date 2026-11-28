@@ -3,13 +3,14 @@ schema_version: 9
 id: syna-mxu9
 title: 'Tableros: referenciar desde cualquier Markdown un tablero o una tarea'
 priority: P2
-status: open
+status: done
 deps:
 - syna-zpvp
 tags:
 - tableros
 owner: null
 created_at: 2026-11-27T14:03:30.178753795Z
+completed_at: 2026-11-28T04:44:43.211503828Z
 acceptance:
 - Una nota muestra el estado de una tarea y de un tablero filtrado, en lectura y en vista en vivo
 ---

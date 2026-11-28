@@ -3,7 +3,7 @@ schema_version: 9
 id: syna-stcs
 title: 'Tableros: traer la descripción desde Azure DevOps'
 priority: P2
-status: open
+status: done
 deps:
 - syna-nvve
 tags:
@@ -11,6 +11,7 @@ tags:
 - azure
 owner: null
 created_at: 2026-11-27T14:47:27.491754163Z
+completed_at: 2026-11-28T04:44:43.221082645Z
 acceptance:
 - «Traer» trae la descripción y se ve en el detalle de la tarea
 ---

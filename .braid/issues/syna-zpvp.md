@@ -3,13 +3,14 @@ schema_version: 9
 id: syna-zpvp
 title: 'Tableros: referencia, tipo y asignado en tarjetas y tabla'
 priority: P2
-status: open
+status: done
 deps: []
 tags:
 - tableros
 - azure
 owner: null
 created_at: 2026-11-27T14:03:30.156776277Z
+completed_at: 2026-11-28T04:44:43.190954161Z
 acceptance:
 - Tras sincronizar, toda tarjeta enlazada muestra su referencia (AB#123) y permite abrirla en el proveedor
 - El asignado y el tipo de item se ven en el Kanban y la tabla

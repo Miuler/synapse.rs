@@ -3,13 +3,14 @@ schema_version: 9
 id: syna-palt
 title: 'Tableros: elegir en el frontmatter los campos que se muestran'
 priority: P2
-status: open
+status: done
 deps:
 - syna-zpvp
 tags:
 - tableros
 owner: null
 created_at: 2026-11-27T14:03:30.162002872Z
+completed_at: 2026-11-28T04:44:43.201233237Z
 acceptance:
 - El frontmatter decide los campos de la tarjeta y de la tabla, y sin él se ven los actuales
 ---

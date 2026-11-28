@@ -3,13 +3,14 @@ schema_version: 9
 id: syna-nj8n
 title: 'Tableros: editar todos los campos desde las vistas, con aviso en el histórico'
 priority: P2
-status: open
+status: done
 deps:
 - syna-kxih
 tags:
 - tableros
 owner: null
 created_at: 2026-11-27T15:23:34.07787452Z
+completed_at: 2026-11-28T04:44:43.225800674Z
 acceptance:
 - Título, descripción, tipo, asignado, estado, planificación y comentarios se editan y se envían al proveedor cuando lo admite
 - Editar el histórico pide confirmación, solo cambia la copia local y no se pisa al traer

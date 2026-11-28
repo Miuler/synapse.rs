@@ -3,13 +3,14 @@ schema_version: 9
 id: syna-pwgq
 title: 'Tableros: traer comentarios e histórico por tarea, con su tipo'
 priority: P2
-status: open
+status: done
 deps: []
 tags:
 - tableros
 - azure
 owner: null
 created_at: 2026-11-27T14:03:30.167789943Z
+completed_at: 2026-11-28T04:44:43.196290946Z
 acceptance:
 - «Traer» trae comentarios e histórico distinguidos por tipo
 - 'Lo traído no se vuelve a enviar y ## Comentarios actual se convierte sin pérdidas'
