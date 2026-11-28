@@ -330,8 +330,8 @@
     {:else}
       <!-- Modo normal: carpetas + separadores + nombre de archivo -->
       <ol class="breadcrumb-list">
-        {#each folders as folder (folder.path)}
-          <li class="breadcrumb-item">
+        {#each folders as folder, i (folder.path)}
+          <li class="breadcrumb-item" style="flex-shrink: {folders.length - i + 1};">
             <button
               type="button"
               class="breadcrumb-btn folder-btn"
@@ -568,14 +568,8 @@
     font-size: 12px;
     color: var(--text-secondary, #656d76);
     user-select: none;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
+    overflow: hidden;
     flex-shrink: 0;
-  }
-
-  .synapse-breadcrumb::-webkit-scrollbar {
-    display: none;
   }
 
   .breadcrumb-list {
@@ -586,12 +580,20 @@
     padding: 0;
     gap: 2px;
     white-space: nowrap;
+    min-width: 0;
+    width: 100%;
   }
 
   .breadcrumb-item {
     display: inline-flex;
     align-items: center;
     gap: 2px;
+    min-width: 0;
+  }
+
+  .breadcrumb-item.active {
+    flex-shrink: 0;
+    max-width: 100%;
   }
 
   .breadcrumb-file-trigger {
@@ -629,6 +631,7 @@
   .breadcrumb-btn.file-btn {
     font-weight: 600;
     color: var(--text-primary, #1f2328);
+    max-width: none;
   }
 
   .breadcrumb-btn.file-btn.editable {
@@ -652,7 +655,7 @@
   }
 
   .file-title {
-    max-width: 220px;
+    max-width: none;
   }
 
   :global(.edit-icon) {
