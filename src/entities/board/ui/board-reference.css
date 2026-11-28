@@ -7,6 +7,17 @@
   font-size: 0.9em;
 }
 
+/* En la vista en vivo, sin márgenes: CodeMirror mide la altura del bloque */
+.cm-board-ref {
+  padding: 0.4em 0;
+  cursor: text;
+}
+
+.cm-board-ref .board-ref {
+  margin: 0;
+  white-space: normal;
+}
+
 .board-ref p,
 .board-ref ul {
   margin: 0;
@@ -82,9 +93,21 @@ a.board-task-ref .board-ref-error {
   color: var(--text-secondary);
 }
 
+.board-ref a {
+  color: var(--accent);
+}
+
 .board-ref-table {
   width: 100%;
   margin: 0;
+  border-collapse: collapse;
+}
+
+.board-ref-table th,
+.board-ref-table td {
+  padding: 4px 8px;
+  border: 1px solid var(--border-primary);
+  text-align: left;
 }
 
 .board-ref-kanban {

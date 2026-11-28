@@ -88,7 +88,9 @@
   salen en UTC. Solo tableros de carpeta: de uno con tabla se pide convertirlo. El tablero se busca con el resolvedor
   de enlaces de la bóveda (sustituye a la función propia de la 4.1; un nombre ambiguo no tiene prueba). La sintaxis se
   documenta en la 4.4
-- [ ] 4.3 Pintarlos en la vista en vivo; e2e de edición alrededor del widget
+- [x] 4.3 Pintarlos en la vista en vivo; e2e de edición alrededor del widget.
+  Con el cursor dentro de un bloque o de un enlace se ve su texto, sin vista previa debajo. Cada referencia se pinta y
+  vigila su tablero por separado; las que piden a la vez el mismo comparten la lectura
 - [ ] 4.4 «Actualizar» desde un bloque y abrir el tablero en una tarea; e2e que confirma que abrir la nota no hace
   peticiones; documentar la sintaxis con ejemplos
 

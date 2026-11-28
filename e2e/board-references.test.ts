@@ -133,3 +133,55 @@ it('al cambiar el tablero, la nota muestra lo nuevo', async () => {
   await until(async () => (await links())[0] === 'AB#1 Publicado ya Hecho', 'el enlace no se actualizó');
   await until(async () => (await blocks())[0].includes('67 % hecho: 2 de 3'), 'el resumen no se actualizó');
 });
+
+const live = '.tab-pane:not(.hidden) .cm-content';
+/** El texto de los bloques y de los enlaces a tareas de la vista en vivo. */
+const liveBlocks = () =>
+  s.browser.execute(() =>
+    [...document.querySelectorAll('.tab-pane:not(.hidden) .cm-board-ref')].map((b) => (b as HTMLElement).innerText.replace(/\s+/g, ' ').trim()),
+  ) as Promise<string[]>;
+const liveLinks = () =>
+  s.browser.execute(() =>
+    [...document.querySelectorAll('.tab-pane:not(.hidden) .cm-line a.board-task-ref')].map((a) => (a as HTMLElement).innerText.replace(/\s+/g, ' ').trim()),
+  ) as Promise<string[]>;
+
+it('en la vista en vivo se ven los mismos tableros y enlaces', async () => {
+  // El modo se elige en la barra de estado
+  await s.browser.$('.md-view-btn').click();
+  await s.browser.$('.view-item.mode-live').click();
+  await until(async () => (await liveLinks())[0] === 'AB#1 Publicado ya Hecho', 'no se pintó el enlace en vivo');
+  await until(async () => (await liveBlocks())[0]?.includes('67 % hecho: 2 de 3') ?? false, 'no se pintó el bloque en vivo');
+  expect((await liveLinks())[1]).toBe('la limpieza Por hacer');
+  if (process.env.E2E_SHOTS) await s.browser.saveScreenshot(`${process.env.E2E_SHOTS}/referencias-vivo.png`);
+}, 60_000);
+
+it('al entrar en un bloque se edita su texto y al salir se vuelve a ver el tablero', async () => {
+  const code = () =>
+    s.browser.execute(() =>
+      [...document.querySelectorAll('.tab-pane:not(.hidden) .cm-line')].map((l) => l.textContent).join('\n'),
+    ) as Promise<string>;
+  expect(await code()).not.toContain('view: summary');
+  const before = (await liveBlocks()).length;
+  await s.browser.$('.tab-pane:not(.hidden) .cm-board-ref .board-ref-percent').click();
+  await until(async () => (await code()).includes('view: summary'), 'no se abrió el texto del bloque');
+  expect((await liveBlocks()).length).toBe(before - 1);
+
+  // Lo que se escribe cambia lo que se ve
+  await s.browser.keys(['End']);
+  await s.browser.keys([' ', 'e', 'x']);
+  await s.browser.keys(['Control', 'Home']);
+  await s.browser.keys(['Control']);
+  await until(async () => (await liveBlocks())[0]?.includes('No existe el tablero «Equipo.board ex»') ?? false, 'no cambió el bloque');
+}, 90_000);
+
+it('pulsar un enlace de un bloque abre la tarea', async () => {
+  await s.browser.execute(() => {
+    const key = [...document.querySelectorAll('.tab-pane:not(.hidden) .cm-board-ref a.board-ref-key')][0] as HTMLElement;
+    key.click();
+  });
+  await until(
+    () => s.browser.execute(() => !!document.querySelector('.tab-title-container.active[data-path="Equipo.board/ado-1.md"]')) as Promise<boolean>,
+    'no se abrió la tarea',
+  );
+}, 60_000);
+

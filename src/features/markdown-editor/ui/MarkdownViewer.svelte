@@ -19,6 +19,7 @@
   import type { MarkdownViewMode } from '@entities/vault-item';
   import type { GitFileStatusKind } from '@shared/repositories';
   import { wikilinkLivePreviewField, onNavigateFacet } from '../lib/wikilink-extension';
+  import { boardLivePreviewField } from '../lib/board-extension';
   import { findHeadingLine, extractHeadingTree, flattenHeadings, normalizeHeadingText, type HeadingTarget } from '../lib/heading-anchor';
   import { wikilinkAutocomplete } from '../lib/wikilink-autocomplete';
   import { imagePasteExtension } from '../lib/image-paste';
@@ -541,6 +542,7 @@
     livePreviewTheme,
     syntaxHighlighting(livePreviewHighlightStyle),
     mermaidLivePreviewField,
+    boardLivePreviewField,
     imageLivePreviewField,
     youtubeLivePreviewField,
     tableRawField,

@@ -3,6 +3,7 @@
 // proveedor no puede ejecutar nada ni cargar recursos.
 import { t } from '@shared/lib/i18n';
 import { referencedBoards } from '../api/board.api';
+import { sharedReads } from '../lib/shared-reads';
 import {
   CATEGORIES,
   parseBoardBlock,
@@ -38,13 +39,15 @@ type Loader = (name: string) => Promise<Result<Loaded>>;
 const failure = (kind: ReferenceError['kind'], detail: string, allowed?: string[]) =>
   ({ ok: false, error: { kind, detail, allowed } }) as const;
 
+const readBoard = sharedReads(referencedBoards.read);
+
 async function load(vault: BoardVault, name: string, notePath: string | null): Promise<Result<Loaded>> {
   const base = name.replace(/\.md$/i, '').replace(/\.board$/i, '');
   const found = await vault.resolveVaultLinkDetailed(`${base}.board.md`, notePath);
   if (found.status === 'missing') return failure('missing_board', name);
   if (found.status === 'ambiguous') return failure('ambiguous_board', name, found.candidates);
   try {
-    return { ok: true, value: { path: found.path, data: await referencedBoards.read(found.path) } };
+    return { ok: true, value: { path: found.path, data: await readBoard(found.path) } };
   } catch (error) {
     const { kind, detail } = error as { kind?: string; detail?: string };
     return failure(kind === 'not_folder_board' ? 'table_board' : 'unreadable', detail || name);
@@ -214,8 +217,16 @@ const decoded = (path: string) => {
   }
 };
 
-/** Pinta las referencias que haya dentro de `root`. Devuelve cómo dejar de vigilar sus tableros. */
-export function mountBoardReferences(root: HTMLElement, notePath: string | null, vault: BoardVault): () => void {
+/**
+ * Pinta las referencias que haya dentro de `root`; `painted` avisa cada vez que una queda pintada.
+ * Devuelve cómo dejar de vigilar sus tableros.
+ */
+export function mountBoardReferences(
+  root: HTMLElement,
+  notePath: string | null,
+  vault: BoardVault,
+  painted: () => void = () => {},
+): () => void {
   const blocks = [...root.querySelectorAll<HTMLElement>('.board-ref[data-code]')];
   const links = [...root.querySelectorAll<HTMLElement>('a.internal-link[data-internal-path]')].filter((anchor) => {
     const target = decoded(anchor.dataset.internalPath!);
@@ -234,14 +245,15 @@ export function mountBoardReferences(root: HTMLElement, notePath: string | null,
       if (!loads.has(name)) loads.set(name, load(vault, name, notePath));
       return loads.get(name)!;
     };
-    for (const box of blocks) void renderBlock(box, loadBoard);
-    for (const anchor of links) void renderTask(anchor, loadBoard);
+    for (const box of blocks) void renderBlock(box, loadBoard).then(painted);
+    for (const anchor of links) void renderTask(anchor, loadBoard).then(painted);
   };
   paint();
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   const unlisten = vault.onFilesChanged(({ paths, deleted }) => {
     if (stopped || ![...paths, ...deleted].some((path) => /\.board(\.md$|\/)/i.test(path))) return;
+    readBoard.forget();
     clearTimeout(timer);
     timer = setTimeout(paint, 200);
   });

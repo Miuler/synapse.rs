@@ -1,5 +1,6 @@
 import { EditorView, Decoration, type DecorationSet, WidgetType } from '@codemirror/view';
 import { StateField, type EditorState, Facet } from '@codemirror/state';
+import { mountBoardReferences, taskReference } from '@entities/board';
 import { vaultApi } from '@entities/vault-item';
 import { activeFilePathFacet } from './mermaid-extension';
 import { extractWikilinkTokens, isNoteTarget, type WikilinkToken } from './link-resolver';
@@ -9,6 +10,8 @@ export const onNavigateFacet = Facet.define<(path: string) => void, (path: strin
 });
 
 const resolvedLinkCache = new Map<string, string>();
+/** Cómo dejar de vigilar el tablero de un enlace a una tarea. */
+const watched = new WeakMap<HTMLElement, () => void>();
 
 class WikilinkWidget extends WidgetType {
   constructor(
@@ -67,6 +70,13 @@ class WikilinkWidget extends WidgetType {
 
     span.appendChild(anchor);
 
+    // Un enlace a la tarea de un tablero muestra su referencia, título y estado
+    if (taskReference(this.token.target)) {
+      anchor.classList.add('internal-link');
+      anchor.dataset.internalPath = this.token.target;
+      watched.set(span, mountBoardReferences(span, this.basePath ?? null, vaultApi, () => view.requestMeasure()));
+    }
+
     // Precargar en caché si aún no está
     if (!resolvedLinkCache.has(cacheKey)) {
       vaultApi.resolveVaultLink(this.token.target, this.basePath).then((resolved) => {
@@ -78,6 +88,11 @@ class WikilinkWidget extends WidgetType {
     }
 
     return span;
+  }
+
+  destroy(dom: HTMLElement): void {
+    watched.get(dom)?.();
+    watched.delete(dom);
   }
 
   ignoreEvent(event: Event): boolean {
