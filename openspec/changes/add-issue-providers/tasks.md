@@ -91,8 +91,12 @@
 - [x] 4.3 Pintarlos en la vista en vivo; e2e de edición alrededor del widget.
   Con el cursor dentro de un bloque o de un enlace se ve su texto, sin vista previa debajo. Cada referencia se pinta y
   vigila su tablero por separado; las que piden a la vez el mismo comparten la lectura
-- [ ] 4.4 «Actualizar» desde un bloque y abrir el tablero en una tarea; e2e que confirma que abrir la nota no hace
-  peticiones; documentar la sintaxis con ejemplos
+- [x] 4.4 «Actualizar» desde un bloque y abrir el tablero en una tarea; e2e que confirma que abrir la nota no hace
+  peticiones; documentar la sintaxis con ejemplos.
+  «Actualizar» es el «Traer» del tablero (lo comparten en `model/pull.ts`) y solo aparece si el tablero tiene origen; no
+  ofrece elegir conexión si hay varias que sirven: lo indica y se elige en el tablero. Si mientras actualiza se reordena o se
+  ensancha una columna en ese tablero abierto, ese cambio choca con la escritura: se avisa, se vuelve a leer y hay que
+  repetirlo
 
 ## 5. GitHub
 

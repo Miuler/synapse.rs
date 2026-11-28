@@ -21,3 +21,5 @@ Avance 2026-11-27: leer el bloque `board`, reconocer el enlace a una tarea, filt
 Avance 2026-11-27: en modo lectura se pintan el bloque `board` y el enlace a una tarea (tarea 4.2). Faltan la vista en vivo (4.3), «Actualizar», abrir el tablero en la tarea y documentar la sintaxis (4.4).
 
 Avance 2026-11-27: la vista en vivo pinta también los bloques y los enlaces (tarea 4.3). Falta «Actualizar», abrir el tablero en la tarea y documentar la sintaxis (4.4).
+
+Avance 2026-11-27: «Actualizar» desde un bloque, abrir el tablero en la tarea y la sintaxis documentada (tarea 4.4). Falta probarlo en un tablero real.

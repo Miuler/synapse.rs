@@ -1,12 +1,31 @@
 // Una nota muestra un tablero y sus tareas sin abrirlo: bloques `board` en sus cuatro vistas y
 // enlaces a tareas, que siguen los cambios del tablero. Lo que no existe se explica en su sitio, y un
 // título con HTML se ve como texto.
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'bun:test';
 import { startApp, type Session } from './harness';
 
-const board = `---
+// Un Azure DevOps de mentira: solo «Actualizar» puede pedirle algo
+const requests: string[] = [];
+const server = Bun.serve({
+  port: 0,
+  hostname: '127.0.0.1',
+  async fetch(request) {
+    const path = new URL(request.url).pathname;
+    requests.push(path);
+    if (path.endsWith('/_apis/wit/wiql')) return Response.json({ workItems: [{ id: 9 }] });
+    if (path.endsWith('/_apis/wit/workitemsbatch')) {
+      const fields = { 'System.Title': 'Traído de Azure', 'System.State': 'Done', 'System.WorkItemType': 'Task' };
+      return Response.json({ value: [{ id: 9, rev: 1, fields }] });
+    }
+    if (path.endsWith('/comments')) return Response.json({ comments: [] });
+    return Response.json({ value: [] });
+  },
+});
+
+const board = () => `---
 type: board
 format: 2
 default_view: kanban
@@ -16,7 +35,7 @@ columns:
   - { id: "done", label: "Hecho", color: "" }
 source:
   provider: azure_devops
-  scope: https://dev.azure.com/org/Demo
+  scope: ${server.url.origin}/org/Demo
   synced_at: "2026-11-27T10:00:00"
 ---
 
@@ -56,10 +75,14 @@ Fin de la nota.
 `;
 
 let s: Session;
+const keyring = mkdtempSync(join(tmpdir(), 'synapse-llavero-'));
+const saved = process.env.SYNAPSE_KEYRING_FILE;
 beforeAll(async () => {
+  process.env.SYNAPSE_KEYRING_FILE = keyring;
+  writeFileSync(join(keyring, 'issues-pruebas'), 'token-falso');
   s = await startApp({
     'nota.md': note,
-    'Equipo.board.md': board,
+    'Equipo.board.md': board(),
     'Equipo.board/ado-1.md': task('Publicar', 'doing', [
       'type: Bug',
       'assignee: Ana',
@@ -69,11 +92,21 @@ beforeAll(async () => {
     'Equipo.board/ado-2.md': task(HOSTILE, 'done', ['type: Task', 'assignee: Luis', 'key: AB#2']),
     'Equipo.board/t1.md': task('Limpiar', 'todo'),
   });
+  const config = join(s.home, '.config/synapsers');
+  mkdirSync(config, { recursive: true });
+  const connection = { id: 'pruebas', provider: 'azure_devops', name: 'Pruebas', server: `${server.url.origin}/org` };
+  writeFileSync(join(config, 'config.jsonc'), JSON.stringify({ issues: { connections: [connection] } }));
   await s.browser.$('.file-tree-item[data-path="nota.md"]').waitForExist({ timeout: 30_000 });
   await s.browser.$('.file-tree-item[data-path="nota.md"]').click();
   await s.browser.$('.markdown-body .board-ref-kanban').waitForExist({ timeout: 30_000 });
 }, 120_000);
-afterAll(() => s?.close());
+afterAll(async () => {
+  if (saved === undefined) delete process.env.SYNAPSE_KEYRING_FILE;
+  else process.env.SYNAPSE_KEYRING_FILE = saved;
+  server.stop(true);
+  await s?.close();
+  rmSync(keyring, { recursive: true, force: true });
+});
 
 const until = (check: () => boolean | Promise<boolean>, what: string) =>
   s.browser.waitUntil(async () => check(), { timeout: 15_000, timeoutMsg: what });
@@ -174,14 +207,51 @@ it('al entrar en un bloque se edita su texto y al salir se vuelve a ver el table
   await until(async () => (await liveBlocks())[0]?.includes('No existe el tablero «Equipo.board ex»') ?? false, 'no cambió el bloque');
 }, 90_000);
 
-it('pulsar un enlace de un bloque abre la tarea', async () => {
-  await s.browser.execute(() => {
-    const key = [...document.querySelectorAll('.tab-pane:not(.hidden) .cm-board-ref a.board-ref-key')][0] as HTMLElement;
-    key.click();
-  });
-  await until(
-    () => s.browser.execute(() => !!document.querySelector('.tab-title-container.active[data-path="Equipo.board/ado-1.md"]')) as Promise<boolean>,
-    'no se abrió la tarea',
-  );
+const dialogTitle = () =>
+  s.browser.execute(() => document.querySelector('.task-dialog .resizable-dialog-title')?.textContent ?? '') as Promise<string>;
+const opensBoardAt = async (title: string) => {
+  await until(async () => (await dialogTitle()) === title, `no se abrió la tarea «${title}»`);
+  expect(
+    await s.browser.execute(() => !!document.querySelector('.tab-title-container.active[data-path="Equipo.board.md"]')),
+  ).toBe(true);
+  await s.browser.$('.task-dialog .resizable-dialog-close').click();
+  await s.browser.$('.task-dialog').waitForExist({ reverse: true, timeout: 5_000 });
+};
+const backToNote = async () => {
+  await s.browser.$('.file-tree-item[data-path="nota.md"]').click();
+  await s.browser.$('.md-view-btn').waitForExist({ timeout: 10_000 });
+};
+
+it('pulsar una referencia de un bloque abre el tablero en esa tarea', async () => {
+  await s.browser.execute(() => (document.querySelector('.tab-pane:not(.hidden) .cm-board-ref a.board-ref-key') as HTMLElement).click());
+  await opensBoardAt('Publicado ya');
 }, 60_000);
 
+it('también el enlace de una frase, en vivo y en lectura, aunque el tablero ya esté abierto', async () => {
+  const click = (selector: string) =>
+    s.browser.execute((selector) => ([...document.querySelectorAll(selector)][1] as HTMLElement).click(), selector);
+  await backToNote();
+  await click('.tab-pane:not(.hidden) .cm-line a.board-task-ref');
+  await opensBoardAt('Limpiar');
+  await backToNote();
+  await s.browser.$('.md-view-btn').click();
+  await s.browser.$('.view-item.mode-reading').click();
+  await until(async () => (await links())[1] === 'la limpieza Por hacer', 'no volvió la lectura');
+  await click('.tab-pane:not(.hidden) .markdown-body > p a.board-task-ref');
+  await opensBoardAt('Limpiar');
+}, 90_000);
+
+it('abrir y leer la nota no pide nada al proveedor; «Actualizar» sí, y se ve lo traído', async () => {
+  await backToNote();
+  // El primer bloque quedó mal escrito en una prueba anterior: se usa el Kanban
+  await until(async () => (await blocks())[3]?.includes('Hecho (2)') ?? false, 'no se ve el Kanban');
+  expect(requests).toEqual([]);
+  await s.browser.execute(() =>
+    (document.querySelectorAll('.tab-pane:not(.hidden) .markdown-body .board-ref')[3].querySelector('.board-ref-refresh') as HTMLElement).click(),
+  );
+  await until(async () => (await blocks())[3].includes('Traído: 1 nuevas'), 'no se actualizó');
+  await until(async () => (await blocks())[3].includes('Hecho (3)') && (await blocks())[3].includes('Traído de Azure'), 'no se ve lo traído');
+  expect(requests.some((path) => path.endsWith('/_apis/wit/wiql'))).toBe(true);
+  expect(readFileSync(join(s.vault, 'Equipo.board/ado-9.md'), 'utf8')).toContain('# Traído de Azure');
+  if (process.env.E2E_SHOTS) await s.browser.saveScreenshot(`${process.env.E2E_SHOTS}/referencias-actualizar.png`);
+}, 90_000);

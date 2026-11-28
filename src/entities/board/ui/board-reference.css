@@ -42,6 +42,27 @@
 
 .board-ref-name {
   font-weight: 600;
+  margin-right: auto;
+}
+
+.board-ref-refresh {
+  padding: 2px 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.board-ref-refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.board-ref .board-ref-status {
+  margin-bottom: 6px;
+  color: var(--text-secondary);
 }
 
 .board-ref-error {

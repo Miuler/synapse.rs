@@ -52,6 +52,11 @@ export class FolderBoard {
     if (failure) throw (failure as { error: unknown }).error;
   }
 
+  /** Cuando no quede nada por guardar. */
+  settled(): Promise<void> {
+    return this.#queue;
+  }
+
   readTask(id: string) {
     return this.#queue.then(() => this.api.readTask(this.path, id));
   }

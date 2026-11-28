@@ -25,7 +25,8 @@
   import {PlantUmlViewer} from "@features/plantuml-editor";
   import {DrawioViewer} from "@features/drawio-editor";
   import {ExcalidrawViewer, ObsidianExcalidrawViewer} from "@features/excalidraw-editor";
-  import {BoardEditor, createDefaultBoardMarkdown, markNewBoard} from "@features/board-editor";
+  import {BoardEditor, createDefaultBoardMarkdown, markNewBoard, refreshBoard} from "@features/board-editor";
+  import { setBoardRefresher } from "@entities/board";
   import {boardLockedPaths} from "@shared/lib/board-protection";
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
@@ -3477,7 +3478,10 @@
     document.addEventListener('visibilitychange', handleWindowBlurOrHidden);
     // Otras features (explorador, breadcrumb) piden guardar el buffer antes de renombrar o hacer git add
     const unregisterFlusher = registerPendingWritesFlusher((paths) => flushAllModifiedTabs(paths));
+    // «Actualizar» de las referencias a tableros que haya en las notas
+    const unregisterRefresher = setBoardRefresher(refreshBoard);
     return () => {
+      unregisterRefresher();
       unregisterFlusher();
       window.removeEventListener('blur', handleWindowBlurOrHidden);
       document.removeEventListener('visibilitychange', handleWindowBlurOrHidden);

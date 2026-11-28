@@ -326,6 +326,8 @@ export const en = {
   boardRef: {
     synced: 'Data from {date} (UTC)',
     neverSynced: 'Never pulled from a provider',
+    refresh: 'Refresh',
+    refreshing: 'Refreshing…',
     empty: 'No task matches the filter.',
     noColumn: 'Without column',
     progress: '{percent}% done: {done} of {total}',

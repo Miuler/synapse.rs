@@ -52,6 +52,11 @@ class WikilinkWidget extends WidgetType {
       e.stopPropagation();
 
       const onNav = view.state.facet(onNavigateFacet);
+      // El de una tarea ya pintada abre su tablero en ella
+      if (anchor.dataset.boardTaskId) {
+        onNav(anchor.dataset.internalPath!);
+        return;
+      }
       const targetPath = this.resolvedPath || resolvedLinkCache.get(cacheKey);
       // `[[nota#Título]]` y `![[nota#Título]]` abren la nota y van a ese encabezado
       const withAnchor = (path: string) =>

@@ -5,6 +5,7 @@
   import { CodeEditor } from '@shared/ui/code-editor';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import { vaultApi } from '@entities/vault-item';
+  import { onBoardTaskRequest, takeBoardTask } from '@entities/board';
   import {
     parseBoardMarkdown,
     placeTask,
@@ -111,6 +112,14 @@
   // El orden de la tabla es solo para mirar: dura lo que la pestaña
   let tableSort = $state<TaskSort | null>(null);
   let selectedTaskId = $state<string | null>(null);
+  // Una nota puede pedir abrir el tablero en una de sus tareas
+  let taskRequests = $state(0);
+  $effect(() => onBoardTaskRequest((requested) => requested === path && taskRequests++));
+  $effect(() => {
+    void taskRequests;
+    const wanted = takeBoardTask(path, doc.tasks);
+    if (wanted) selectedTaskId = wanted;
+  });
   /** Las tareas vinculadas que la consulta del tablero ya no devuelve. */
   let outside = $derived(
     new Set(Object.entries(doc.source?.links ?? {}).flatMap(([id, link]) => (link.outside ? [id] : []))),

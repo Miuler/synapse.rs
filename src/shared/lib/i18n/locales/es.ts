@@ -327,6 +327,8 @@ export const es: TranslationSchema = {
   boardRef: {
     synced: 'Datos del {date} (UTC)',
     neverSynced: 'Nunca traído de un proveedor',
+    refresh: 'Actualizar',
+    refreshing: 'Actualizando…',
     empty: 'Ninguna tarea cumple el filtro.',
     noColumn: 'Sin columna',
     progress: '{percent} % hecho: {done} de {total}',

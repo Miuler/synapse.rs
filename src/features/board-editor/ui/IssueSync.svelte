@@ -6,15 +6,13 @@
   import SourceDialog from './SourceDialog.svelte';
   import { azureToken } from '../api/azure-devops.api';
   import { connectionsApi, type Connection } from '../api/connections.api';
-  import { fetchActivity, fetchIssues, filterQuery, issueProviders, issueWriter, type IssueError } from '../api/issues.api';
-  import { changedIssues, receive } from '../model/activity';
+  import { fetchIssues, issueProviders, issueWriter, type IssueError } from '../api/issues.api';
+  import { issueErrorText, linkedIds, pullIssues } from '../model/pull';
   import type { TaskFile } from '../model/folder-board';
   import {
-    applyPull,
     buildPushPlan,
     hasChanges,
     runPush,
-    usesFilter,
     type IssueProvider,
     type IssueSource,
     type PushChange,
@@ -78,11 +76,7 @@
     if (connections.length || token?.reference || token?.stored) editing = { connections, isNew: true };
   }
 
-  function errorText(error: unknown): string {
-    const e = error as Partial<IssueError>;
-    if (!e?.kind) return String(error);
-    return t(`issues.errors.${e.kind}`, { provider: provider?.name ?? '', detail: e.detail ?? '' });
-  }
+  const errorText = (error: unknown) => issueErrorText(error, provider?.name ?? '');
 
   async function openSettings() {
     try {
@@ -97,11 +91,6 @@
     write({ ...read(), source });
     editing = null;
     messages = [];
-  }
-
-  /** Los ids vinculados a tareas que siguen en el tablero. */
-  function linkedIds(doc: BoardDocument): string[] {
-    return doc.tasks.flatMap((task) => doc.source?.links?.[task.id]?.id ?? []);
   }
 
   async function sync(action: (source: IssueSource, provider: IssueProvider) => Promise<void>) {
@@ -125,53 +114,7 @@
 
   const pull = () =>
     sync(async (source, declared) => {
-      let query = source.query?.trim() || declared.default_query;
-      // «La iteración en curso» cambia con los días: la consulta del filtro se rehace al traer
-      if (usesFilter(source)) {
-        const compiled = await filterQuery(source, source.filter);
-        const doc = read();
-        if (compiled !== query && doc.source && usesFilter(doc.source)) {
-          write({ ...doc, source: { ...doc.source, query: compiled, filter_query: compiled } });
-        }
-        query = compiled;
-      }
-      const { items, requested, matched } = await fetchIssues(source, query, linkedIds(read()));
-      if (read().source?.scope !== source.scope) return;
-      const today = new Date().toLocaleDateString('sv-SE');
-      const apply = () => applyPull(read(), declared, items, requested, today, matched);
-      // En un tablero de carpeta, además, la actividad de lo que cambió
-      let activity: Awaited<ReturnType<typeof fetchActivity>> | undefined;
-      const files: Record<string, TaskFile> = {};
-      if (readTask) {
-        const ids = changedIssues(apply().doc, items);
-        activity = ids.length ? await fetchActivity(source, ids) : { items: {}, failed: [] };
-        const existing = Object.entries(read().source?.links ?? {}).filter(([, link]) => activity!.items[link.id]);
-        const present = new Set(read().tasks.map((task) => task.id));
-        await Promise.all(
-          existing.filter(([id]) => present.has(id)).map(async ([id]) => (files[id] = (await readTask(id)).task)),
-        );
-        if (read().source?.scope !== source.scope) return;
-      }
-      const result = apply();
-      let { doc } = result;
-      let changed = result.changed;
-      let conflicts = result.conflicts;
-      if (activity) {
-        const received = receive(doc, items, activity.items, files);
-        doc = received.doc;
-        doc = { ...doc, source: { ...doc.source!, synced_at: new Date().toISOString().slice(0, 19) } };
-        changed = [...new Set([...changed, ...received.changed])];
-        conflicts = [...new Set([...conflicts, ...received.conflicts])];
-      }
-      write(doc);
-      const failed = activity?.failed ?? [];
-      messages = [
-        t('issues.pulled', { added: result.added, updated: changed.length }),
-        ...(failed.length ? [t('issues.activityFailed', { count: failed.length, detail: errorText(failed[0].error) })] : []),
-        ...(conflicts.length ? [t('issues.conflicts', { tasks: conflicts.join(', ') })] : []),
-        ...(result.missing.length ? [t('issues.missing', { ids: result.missing.join(', ') })] : []),
-        ...(result.outside.length ? [t('issues.outsideCount', { tasks: result.outside.join(', ') })] : []),
-      ];
+      messages = await pullIssues(source, declared, { read, write, readTask });
     });
 
   const preparePush = () =>

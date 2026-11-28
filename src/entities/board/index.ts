@@ -23,3 +23,4 @@ export {
   type Summary,
 } from './model/query';
 export { mountBoardReferences, type BoardVault } from './ui/mount';
+export { onBoardTaskRequest, requestBoardTask, setBoardRefresher, takeBoardTask } from './model/actions';

@@ -127,7 +127,7 @@ export function taskReference(target: string): { board: string; task: string } |
 export interface ReferencedBoard {
   board: {
     columns: { id: string; label: string; color: string }[];
-    source: { synced_at?: string } | null;
+    source: { provider?: string; synced_at?: string } | null;
   };
   tasks: {
     id: string;

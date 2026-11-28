@@ -4,6 +4,7 @@
 import { t } from '@shared/lib/i18n';
 import { referencedBoards } from '../api/board.api';
 import { sharedReads } from '../lib/shared-reads';
+import { boardRefresher, requestBoardTask } from '../model/actions';
 import {
   CATEGORIES,
   parseBoardBlock,
@@ -40,6 +41,16 @@ const failure = (kind: ReferenceError['kind'], detail: string, allowed?: string[
   ({ ok: false, error: { kind, detail, allowed } }) as const;
 
 const readBoard = sharedReads(referencedBoards.read);
+/** Dos bloques del mismo tablero no lo traen dos veces a la vez. */
+const refreshOnce = sharedReads((path: string) => boardRefresher()!(path));
+
+/** Lo que cuenta un bloque sobre su última actualización. */
+interface Refresh {
+  busy: boolean;
+  message?: string;
+  failed?: boolean;
+}
+const refreshes = new WeakMap<HTMLElement, Refresh>();
 
 async function load(vault: BoardVault, name: string, notePath: string | null): Promise<Result<Loaded>> {
   const base = name.replace(/\.md$/i, '').replace(/\.board$/i, '');
@@ -77,7 +88,13 @@ function link(path: string, text: string, className = '') {
   return anchor;
 }
 
-const taskPath = (board: string, id: string) => `${board.slice(0, -'.md'.length)}/${id}.md`;
+/** Un enlace que abre el tablero en una tarea. */
+function opensTask(anchor: HTMLElement, board: string, id: string) {
+  anchor.setAttribute('href', encodeURI(board));
+  anchor.dataset.internalPath = board;
+  anchor.dataset.boardTaskId = id;
+  return anchor;
+}
 
 function value(row: Row, field: ReferenceField): string {
   if (field === 'progress') return `${row.progress}%`;
@@ -87,7 +104,7 @@ function value(row: Row, field: ReferenceField): string {
 }
 
 function cell(board: string, row: Row, field: ReferenceField): HTMLElement {
-  if (field === 'key') return link(taskPath(board, row.id), row.key, 'board-ref-key');
+  if (field === 'key') return opensTask(link(board, row.key, 'board-ref-key'), board, row.id);
   if (field === 'state') return element('span', `board-ref-state is-${row.category}`, row.state);
   return element('span', `board-ref-${field}`, value(row, field));
 }
@@ -164,7 +181,30 @@ function kanban(board: string, resolved: Resolved) {
   return node;
 }
 
-async function renderBlock(box: HTMLElement, loadBoard: Loader) {
+/** «Actualizar», que es el «Traer» del tablero y solo ocurre al pulsarlo. */
+function refreshButton(box: HTMLElement, path: string, repaint: () => void) {
+  const busy = !!refreshes.get(box)?.busy;
+  const button = element('button', 'board-ref-refresh', t(busy ? 'boardRef.refreshing' : 'boardRef.refresh'));
+  button.type = 'button';
+  button.disabled = busy;
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    // En la vista en vivo, un clic en el bloque lleva a editarlo: este no
+    event.stopPropagation();
+    refreshes.set(box, { busy: true });
+    repaint();
+    refreshOnce(path)
+      .then((message) => refreshes.set(box, { busy: false, message }))
+      .catch((error: Error) => refreshes.set(box, { busy: false, message: error.message, failed: true }))
+      .finally(() => {
+        readBoard.forget();
+        repaint();
+      });
+  });
+  return button;
+}
+
+async function renderBlock(box: HTMLElement, loadBoard: Loader, repaint: () => void) {
   const parsed = parseBoardBlock(decodeURIComponent(box.dataset.code ?? ''));
   const found = parsed.ok ? await loadBoard(parsed.value.board) : parsed;
   if (!parsed.ok || !found.ok) {
@@ -179,13 +219,18 @@ async function renderBlock(box: HTMLElement, loadBoard: Loader) {
     ? t('boardRef.synced', { date: resolved.syncedAt.replace('T', ' ').slice(0, 16) })
     : t('boardRef.neverSynced');
   header.append(link(path, path.split('/').pop()!.replace(/\.board\.md$/i, ''), 'board-ref-name'), element('small', '', date));
+  if (boardRefresher() && data.board.source?.provider) header.append(refreshButton(box, path, repaint));
+  const refresh = refreshes.get(box);
+  const status = refresh?.message
+    ? [element('p', refresh.failed ? 'board-ref-error' : 'board-ref-status', refresh.message)]
+    : [];
   let content: Node[];
   if (resolved.view === 'summary') content = [summary(resolved)];
   else if (!resolved.summary.total && resolved.view !== 'kanban') content = [element('p', 'board-ref-empty', t('boardRef.empty'))];
   else if (resolved.view === 'table') content = [table(path, resolved)];
   else if (resolved.view === 'kanban') content = [kanban(path, resolved)];
   else content = list(path, resolved);
-  box.replaceChildren(header, ...content);
+  box.replaceChildren(header, ...status, ...content);
 }
 
 async function renderTask(anchor: HTMLElement, loadBoard: Loader) {
@@ -200,6 +245,7 @@ async function renderTask(anchor: HTMLElement, loadBoard: Loader) {
     return;
   }
   const row = task.value as Row;
+  if (found.ok) opensTask(anchor, found.value.path, row.id);
   // Un texto propio (`[[…|así]]`) se respeta
   const plain = taskReference(written);
   const own = !plain || plain.task.toLowerCase() !== reference.task.toLowerCase();
@@ -238,6 +284,13 @@ export function mountBoardReferences(
   if (!blocks.length && !links.length) return () => {};
 
   let stopped = false;
+  // Antes de que el enlace navegue, se anota en qué tarea abrir el tablero
+  const open = (event: Event) => {
+    const anchor = (event.target as HTMLElement).closest?.<HTMLElement>('a[data-board-task-id]');
+    if (anchor) requestBoardTask(anchor.dataset.internalPath!, anchor.dataset.boardTaskId!);
+  };
+  root.addEventListener('click', open, true);
+
   const paint = () => {
     // Cada tablero se lee una vez por pasada
     const loads = new Map<string, Promise<Result<Loaded>>>();
@@ -245,8 +298,11 @@ export function mountBoardReferences(
       if (!loads.has(name)) loads.set(name, load(vault, name, notePath));
       return loads.get(name)!;
     };
-    for (const box of blocks) void renderBlock(box, loadBoard).then(painted);
+    for (const box of blocks) void renderBlock(box, loadBoard, repaint).then(painted);
     for (const anchor of links) void renderTask(anchor, loadBoard).then(painted);
+  };
+  const repaint = () => {
+    if (!stopped) paint();
   };
   paint();
 
@@ -258,6 +314,7 @@ export function mountBoardReferences(
     timer = setTimeout(paint, 200);
   });
   return () => {
+    root.removeEventListener('click', open, true);
     stopped = true;
     clearTimeout(timer);
     void unlisten.then((stop) => stop());

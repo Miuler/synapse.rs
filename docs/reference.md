@@ -204,6 +204,42 @@ type, assignee and description changed in a task, and creates new issues with th
   together with a state the new type accepts. A change the provider rejects is reported and stays pending.
 - The assignee is sent by name: Azure DevOps rejects it if the name matches nobody or several people.
 
+### Showing boards in notes
+
+A note can show folder boards, in reading and live view. Notes only read the board files: opening one never contacts a
+provider.
+
+A task, inside a sentence — it shows its reference, title and state (or your own text and the state) and opens the
+board at that task:
+
+```markdown
+The release depends on [[Team.board/ado-123]] and on [[Team.board/t1|the cleanup]].
+```
+
+A whole board, or part of it:
+
+````markdown
+```board
+board: Team.board          # path or unique name
+view: summary              # summary | list (default) | table | kanban
+filter:                    # all must match; any value of a list is enough
+  state: [doing, todo]     # category (todo, doing, done, cancelled), column or provider state
+  type: [Bug]
+  assignee: Ana
+  key: [AB#123, AB#124]    # provider reference or task id
+group_by: assignee         # state | type | assignee
+sort: updated desc         # a field, then asc (default) or desc
+limit: 20
+fields: [key, title, state, assignee]   # also type, progress, start, duration, updated
+```
+````
+
+`summary` counts tasks by category and shows the share done (cancelled ones do not count). The category comes from the
+column or state name; if neither says it, the first column is «to do», the last «done» and the rest «in progress».
+Each block shows the date of the data (`synced_at`, UTC) and, if the board has a source, «Refresh», which is the «Pull»
+of the board and only runs when clicked. In live view, click inside a block to edit its text. Table boards must be
+converted first.
+
 ## MCP server
 
 When enabled for a vault, Synapse serves the [Model Context Protocol](https://modelcontextprotocol.io) (version
