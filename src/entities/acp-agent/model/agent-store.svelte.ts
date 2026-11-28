@@ -1,6 +1,6 @@
 import { t } from '@shared/lib/i18n';
 import { quotaMarkdown } from '../lib/quota';
-import { agentNoticeContent, notifyIfUnfocused, requestAttention } from '@shared/lib/attention';
+import { agentNoticeContent, notifyIfUnfocused, onNotificationClicked, requestAttention } from '@shared/lib/attention';
 import { playAgentCompletionSound } from '@shared/lib/sound';
 import { completionNotice } from './completion-notice';
 import { PeerLink, type PeerRequest, type RemoteRef } from './peer-link';
@@ -714,7 +714,7 @@ export class Conversation {
         const last = this.items.slice(turnStart).findLast((i) => i.type === 'agent');
         const answer = agentNoticeContent() === 'answer' && last?.type === 'agent' ? last.text : undefined;
         const notice = completionNotice(this.agent?.name ?? 'El agente', this.handle, text, stopReason === 'error', answer);
-        notifyIfUnfocused(notice.title, notice.body);
+        notifyIfUnfocused(notice.title, notice.body, this.id);
       }
       this.deliverNext();
       // Una pregunta aparte que respondió sin estar a la vista ya no necesita su sesión
@@ -1172,7 +1172,7 @@ export class AgentStore {
   }
 
   #listen() {
-    this.#listening ??= (listenConversationRequests((req) => this.handleConversationRequest(req)), listenAgentEvents({
+    this.#listening ??= (void onNotificationClicked((id) => this.reveal(id)), listenConversationRequests((req) => this.handleConversationRequest(req)), listenAgentEvents({
       onPlan: (e) => {
         const c = this.#bySession(e.sessionId);
         if (c) c.plan = e.entries;
@@ -1247,6 +1247,7 @@ export class AgentStore {
         requestAttention(
           `${c.agent?.name ?? 'El agente'} pide permiso`,
           `${c.handle}${tool && tool.type === 'tool' ? ` · ${tool.title}` : ''}`,
+          c.id,
         );
       },
       onElicitation: (e) => {
@@ -1264,6 +1265,7 @@ export class AgentStore {
         requestAttention(
           `${c.agent?.name ?? 'El agente'} solicita información`,
           `${c.handle} · ${e.message}`,
+          c.id,
         );
       },
       onStatus: (e) => {
@@ -1331,6 +1333,13 @@ export class AgentStore {
   searchRequest = $state<string | null>(null);
 
   /** Abre la búsqueda de una conversación, desplegándola si hace falta. */
+  /** Clic en una notificación: abre el panel con esa conversación a la vista. */
+  reveal(id: string) {
+    if (!this.byId(id)) return;
+    this.setPanelOpen(true);
+    this.expand(id);
+  }
+
   searchIn(id: string) {
     const aside = this.conversations.some((c) => c.asides.some((a) => a.id === id));
     const c = this.byId(id);

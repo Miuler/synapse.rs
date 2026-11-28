@@ -147,8 +147,54 @@ fn escape_notification_body(body: String) -> String {
     }
 }
 
-/// Notificación del sistema con el icono de Synapse (sin él, el demonio muestra uno genérico).
-fn show_notification(window: &tauri::WebviewWindow, title: String, body: String) -> Result<(), String> {
+/// Evento a la ventana que avisó cuando se hace clic en su notificación; lleva la conversación.
+const NOTIFICATION_CLICKED: &str = "notification://clicked";
+
+/// Pide a Hyprland que enfoque la ventana de este proceso: en Wayland una app no puede tomar el foco
+/// por su cuenta. Prueba la sintaxis de la configuración en Lua y luego la clásica.
+#[cfg(target_os = "linux")]
+fn focus_with_hyprland(pid: u32) {
+    if std::env::var_os("HYPRLAND_INSTANCE_SIGNATURE").is_none() {
+        return;
+    }
+    let window = format!("pid:{pid}");
+    for args in [
+        vec![format!("hl.dsp.focus({{ window = '{window}' }})")],
+        vec!["focuswindow".to_string(), window.clone()],
+    ] {
+        let done = std::process::Command::new("hyprctl")
+            .arg("dispatch")
+            .args(&args)
+            .output()
+            .is_ok_and(|out| out.stdout.starts_with(b"ok"));
+        if done {
+            return;
+        }
+    }
+    log::warn!("Hyprland no enfocó la ventana");
+}
+
+/// Clic en una notificación: trae la ventana al frente y le dice qué conversación mostrar.
+#[cfg(target_os = "linux")]
+fn open_from_notification(window: &tauri::WebviewWindow, conversation: Option<String>) {
+    use tauri::Emitter;
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+    focus_with_hyprland(std::process::id());
+    if let Some(id) = conversation {
+        let _ = window.emit_to(window.label(), NOTIFICATION_CLICKED, id);
+    }
+}
+
+/// Notificación del sistema con el icono de Synapse (sin él, el demonio muestra uno genérico). En
+/// Linux, hacer clic en ella abre la ventana (y `conversation`, si se indica).
+fn show_notification(
+    window: &tauri::WebviewWindow,
+    title: String,
+    body: String,
+    conversation: Option<String>,
+) -> Result<(), String> {
     use tauri::Manager;
     let icon = window
         .app_handle()
@@ -165,21 +211,29 @@ fn show_notification(window: &tauri::WebviewWindow, title: String, body: String)
         notification
             .appname("Synapse")
             .summary(&title)
-            .body(&escape_notification_body(body));
+            .body(&escape_notification_body(body))
+            // La acción por defecto es el clic sobre la notificación (no se pinta como botón)
+            .action("default", "Abrir");
         if let Some(icon) = icon {
             notification.icon(&icon).image_path(&icon);
         }
-        // Fuera del hilo principal: espera la respuesta del demonio por D-Bus
-        std::thread::spawn(move || {
-            if let Err(e) = notification.show() {
-                log::warn!("No se pudo mostrar la notificación: {e}");
-            }
+        let window = window.clone();
+        // Fuera del hilo principal: espera al demonio por D-Bus hasta el clic o el cierre
+        std::thread::spawn(move || match notification.show() {
+            Ok(handle) => handle.wait_for_action(|action| {
+                if action == "default" {
+                    open_from_notification(&window, conversation);
+                }
+            }),
+            Err(e) => log::warn!("No se pudo mostrar la notificación: {e}"),
         });
         Ok(())
     }
     #[cfg(not(target_os = "linux"))]
     {
         use tauri_plugin_notification::NotificationExt;
+        // Aquí el plugin no avisa del clic
+        let _ = (conversation, NOTIFICATION_CLICKED);
         let mut builder = window
             .notification()
             .builder()
@@ -196,19 +250,29 @@ fn show_notification(window: &tauri::WebviewWindow, title: String, body: String)
 /// ventana no está al frente: la marca como urgente en la barra de tareas y avisa con una
 /// notificación del sistema. No le quita el foco a lo que el usuario esté haciendo.
 #[tauri::command]
-pub fn request_attention(window: tauri::WebviewWindow, title: String, body: String) -> Result<(), String> {
+pub fn request_attention(
+    window: tauri::WebviewWindow,
+    title: String,
+    body: String,
+    conversation: Option<String>,
+) -> Result<(), String> {
     if window.is_focused().unwrap_or(false) {
         return Ok(());
     }
     let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
-    show_notification(&window, title, body)
+    show_notification(&window, title, body, conversation)
 }
 
 /// Avisa con una notificación del sistema solo si ninguna ventana de este proceso tiene el foco (por
 /// ejemplo, cuando el agente termina y el usuario está en otra aplicación). Sin marca de urgencia.
 /// Otra instancia de Synapse con otra bóveda es otro proceso y no cuenta.
 #[tauri::command]
-pub fn notify_if_unfocused(window: tauri::WebviewWindow, title: String, body: String) -> Result<(), String> {
+pub fn notify_if_unfocused(
+    window: tauri::WebviewWindow,
+    title: String,
+    body: String,
+    conversation: Option<String>,
+) -> Result<(), String> {
     use tauri::Manager;
     let focused = window
         .app_handle()
@@ -218,7 +282,7 @@ pub fn notify_if_unfocused(window: tauri::WebviewWindow, title: String, body: St
     if focused {
         return Ok(());
     }
-    show_notification(&window, title, body)
+    show_notification(&window, title, body, conversation)
 }
 
 /// Diálogo nativo para elegir una imagen; devuelve su ruta absoluta.

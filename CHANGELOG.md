@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Clicking an agent notification (turn finished, permission or question) brings Synapse to the front and shows that conversation (Linux; on Hyprland the window is focused through the compositor).
 - `index.md` files show the empty tab background as a very faint, blurred watermark; themes can change it with `--index-wallpaper-blur` and `--index-wallpaper-opacity`.
 - Git log: «Merge “branch” into “current”» in the menu of a commit that is not in the current branch. If there are conflicts, a JetBrains-style dialog lists the files (diff, accept yours, accept theirs or merge; ↑/↓ and Enter), shows what changed in a file (also in one that one side deleted, to see what would be lost) and opens a three-pane editor (yours, result, theirs) where each change is applied or ignored, the non-conflicting ones can be applied at once, the result can be edited by hand, and `F7` / `Shift+F7` move between changes. The merge is then committed (and can be undone from the log) or aborted; one left unfinished, also from the terminal, can be resumed from the log.
 - Agent chat: `@` also completes vault folders (`@docs/guides/`, with `@f:` to list only files and folders); the folder is attached and the agent is told to list its contents.
