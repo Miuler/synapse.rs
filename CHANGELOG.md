@@ -70,6 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Agent chat: the `@` list no longer stops filtering when two Synapse vaults have the same name.
+- Agent chat: `@` keeps searching after a space, so files and folders with spaces in their names can be found (each word must appear). `Enter` right after a space sends the message; `Tab` picks the suggestion.
 - Explorer: deleted files now show a «D» badge, green when the deletion is staged (so «Git Add» is not offered) and red while it is not; before, they had no badge. A deleted folder whose deletion is fully staged is shown in green instead of red.
 - Agent chat: `@` suggests the best file matches first (by name, then by path); in large vaults a file such as `main.yaml` could be left out by others that only matched scattered letters.
 - Going back in the history returns to the `index.md` you left through a link, also when it was the tab restored on opening or activated by closing another one.

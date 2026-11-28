@@ -14,6 +14,7 @@ beforeAll(async () => {
     'otra.md': '# Otra\n',
     'flujo.mmd': 'graph TD\n  A[Inicio] --> B[Fin]\n',
     'docs/guias/alta.md': '# Alta\n',
+    'docs/algo con espacio.md': '# Algo\n',
   });
   await s.browser.$('.file-tree-item[data-path="nota.md"]').waitForExist({ timeout: 30_000 });
   await s.browser.$('.file-tree-item[data-path="nota.md"]').click();
@@ -592,6 +593,48 @@ it('@carpeta se autocompleta, queda adjunta y el mensaje dice a qué apunta', as
     { timeout: 10_000, timeoutMsg: 'el mensaje no marca la carpeta' },
   );
   await s.browser.waitUntil(async () => !(await s.browser.execute(() => !!document.querySelector('.acp-send[title^="Detener"]'))), { timeout: 15_000 });
+}, 60_000);
+
+it('@ sigue buscando un archivo cuyo nombre tiene espacios', async () => {
+  const input = s.browser.$('.acp-input textarea');
+  await s.browser.waitUntil(async () => !(await input.getAttribute('disabled')), { timeout: 15_000 });
+  await input.setValue('abre ');
+  await s.browser.keys('@algo con'.split(''));
+  await s.browser.waitUntil(async () => (await text('.acp-suggest-detail')).includes('docs/algo con espacio.md'), {
+    timeout: 5_000,
+    timeoutMsg: 'el espacio cortó la búsqueda',
+  });
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await input.getValue()) === 'abre @docs/algo_con_espacio.md ', { timeout: 5_000, timeoutMsg: 'no se insertó la mención' });
+  // Elegida, lo que se escribe después ya no busca
+  await s.browser.keys('ya'.split(''));
+  expect(await count('.acp-suggest button')).toBe(0);
+  await input.clearValue();
+}, 60_000);
+
+it('@ sigue filtrando aunque dos bóvedas se llamen igual', async () => {
+  const recents = join(s.home, '.config/synapsers/workspaces.json');
+  const reg = existsSync(recents) ? JSON.parse(readFileSync(recents, 'utf8')) : { workspaces: [] };
+  for (const where of ['uno', 'dos']) {
+    const path = join(s.vault, '..', where, 'gemela');
+    mkdirSync(path, { recursive: true });
+    reg.workspaces.push({ path, display_path: path, name: 'gemela', last_opened_ms: 1 });
+  }
+  writeFileSync(recents, JSON.stringify(reg));
+  const input = s.browser.$('.acp-input textarea');
+  await s.browser.waitUntil(async () => !(await input.getAttribute('disabled')), { timeout: 15_000 });
+  await input.setValue('mira ');
+  await s.browser.keys('@');
+  await s.browser.waitUntil(async () => (await count('.acp-suggest button')) > 0, { timeout: 5_000 });
+  await s.browser.keys('gemela'.split(''));
+  await s.browser.waitUntil(
+    async () => {
+      const labels = (await text('.acp-suggest-label')) as string[];
+      return labels.length === 2 && labels.every((l) => l.includes('@gemela'));
+    },
+    { timeout: 5_000, timeoutMsg: 'la lista no se actualizó al filtrar' },
+  );
+  await input.clearValue();
 }, 60_000);
 
 it('cola: mientras trabaja, Enter encola; ✕ quita; al terminar se envía; ↑ edita; Detener lo devuelve a la caja', async () => {

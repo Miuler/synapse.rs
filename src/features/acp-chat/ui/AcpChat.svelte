@@ -66,7 +66,8 @@
     foldersOf,
     folderMention,
     bestMatches,
-    fuzzy,
+    matches,
+    mentionAt,
     mergeVaults,
     STATUS_ICON,
     VAULT_ICON,
@@ -218,10 +219,7 @@
   // Autocompletado: `@nota` o `@carpeta` la mencionan, `/comando` al inicio usa un comando del agente
   const vaultFolders = $derived(foldersOf(vaultItemStore.items.map((it) => it.relative_path)));
   let caret = $state(0);
-  const mention = $derived.by(() => {
-    const m = /(^|\s)@([^\s@]*)$/.exec(conv.draft.slice(0, caret));
-    return m ? { query: m[2].toLowerCase(), start: caret - m[2].length - 1 } : null;
-  });
+  const mention = $derived(mentionAt(conv.draft.slice(0, caret), conv.pickedMentions));
   const slash = $derived(/^\/(\S*)$/.exec(conv.draft)?.[1]?.toLowerCase() ?? null);
   // `#2`: otra conversación de esta ventana
   const hash = $derived.by(() => {
@@ -365,7 +363,7 @@
         scope === 'files' || isAside
           ? []
           : vaults
-              .filter((v) => fuzzy(v.name.toLowerCase(), q))
+              .filter((v) => matches(v.name.toLowerCase(), q))
               .slice(0, scope ? 8 : 5)
               .map((v) => ({
                 label: `${VAULT_ICON[v.state]} ${vaultToken(v.name)}`,
@@ -404,7 +402,7 @@
         scope === 'agents' || !q
           ? []
           : vaultFolders
-              .filter((path) => fuzzy(`${path.toLowerCase()}/`, q))
+              .filter((path) => matches(`${path.toLowerCase()}/`, q))
               .sort((a, b) => Number(startsFolder(b)) - Number(startsFolder(a)))
               .slice(0, scope ? 8 : 3);
       const folderRows: Suggestion[] = folders.map((path) => ({
@@ -570,8 +568,9 @@
         pickIndex = (pickIndex + d + suggestions.length) % suggestions.length;
         return;
       }
-      // Enter con el comando ya escrito completo lo envía (no vuelve a elegir la misma sugerencia)
-      const complete = e.key === 'Enter' && suggestions[pickIndex].label === conv.draft.trim();
+      // Enter con el comando ya escrito completo lo envía (no vuelve a elegir la misma sugerencia), y
+      // también si la mención acaba en un espacio: se siguió escribiendo (Tab sí la elige)
+      const complete = e.key === 'Enter' && (suggestions[pickIndex].label === conv.draft.trim() || !!mention?.query.endsWith(' '));
       if ((e.key === 'Enter' || e.key === 'Tab') && !complete) {
         e.preventDefault();
         suggestions[pickIndex].pick();
@@ -1050,7 +1049,9 @@
     >
       {#if suggestions.length}
         <div class="acp-suggest" role="listbox">
-          {#each suggestions as sug, i (sug.detail + sug.label)}
+          <!-- Sin clave: dos filas pueden ser iguales (bóvedas con el mismo nombre) y una clave repetida
+               deja la lista sin actualizar -->
+          {#each suggestions as sug, i}
             {#if sug.header}<div class="acp-suggest-header">{sug.header}</div>{/if}
             <button
               type="button"

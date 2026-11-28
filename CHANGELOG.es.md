@@ -70,6 +70,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Chat del agente: la lista de `@` ya no deja de filtrar cuando dos bóvedas de Synapse se llaman igual.
+- Chat del agente: `@` sigue buscando tras un espacio, así que se encuentran archivos y carpetas con espacios en el nombre (deben aparecer todas las palabras). `Enter` justo tras un espacio envía el mensaje; `Tab` elige la sugerencia.
 - Explorador: los archivos borrados muestran ahora una insignia «D», verde si el borrado ya está en stage (por eso no se ofrece «Git Add») y roja mientras no lo está; antes no tenían insignia. Una carpeta borrada cuyo borrado está entero en stage se ve en verde en vez de rojo.
 - Chat del agente: `@` sugiere primero los archivos que mejor casan (por nombre y luego por ruta); en bóvedas grandes un archivo como `main.yaml` podía quedar fuera por otros que solo coincidían en letras sueltas.
 - Atrás en el historial vuelve al `index.md` del que se salió por un enlace, también cuando era la pestaña restaurada al abrir o activada al cerrar otra.

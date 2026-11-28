@@ -61,6 +61,27 @@ export function fuzzy(text: string, query: string): boolean {
   return i === query.length;
 }
 
+/** Sin espacios, letras sueltas en orden; con espacios, cada palabra tal cual (para no casar frases). */
+export function matches(text: string, query: string): boolean {
+  if (!/\s/.test(query)) return fuzzy(text, query);
+  return query.split(/\s+/).every((word) => text.includes(word));
+}
+
+/**
+ * La mención `@…` que se está escribiendo al final de `text`. Admite espacios (`@algo con`), salvo
+ * justo tras la `@`, hasta un salto de línea; una ya elegida (de `picked`) seguida de texto no cuenta.
+ */
+export function mentionAt(text: string, picked: Mention[]): { query: string; start: number } | null {
+  const found = /(^|\s)@((?:[^\s@][^@\n]*)?)$/.exec(text);
+  if (!found) return null;
+  const query = found[2];
+  const start = text.length - query.length - 1;
+  if (picked.some((m) => text.slice(start).startsWith(`${m.token} `))) return null;
+  // Las conversaciones de otra bóveda (`@Bóveda#2`) van sin espacios
+  if (query.includes('#') && /\s/.test(query)) return null;
+  return { query: query.toLowerCase(), start };
+}
+
 /** Qué tan bien casa una ruta (en minúsculas) con lo escrito: 0 es lo mejor. */
 function matchRank(path: string, query: string): number {
   const name = path.slice(path.lastIndexOf('/') + 1);
@@ -72,14 +93,15 @@ function matchRank(path: string, query: string): number {
 
 /**
  * Los `limit` elementos cuya ruta mejor casa con `query` (en minúsculas): primero por su nombre,
- * luego por la ruta y al final por letras sueltas; a igualdad, la ruta más corta. Sin texto, en su orden.
+ * luego por la ruta y al final por letras o palabras sueltas; a igualdad, la ruta más corta. Sin texto,
+ * en su orden.
  */
 export function bestMatches<T>(items: Iterable<T>, pathOf: (item: T) => string, query: string, limit: number): T[] {
   if (!query) return [...items].slice(0, limit);
   const found: { item: T; rank: number; length: number }[] = [];
   for (const item of items) {
     const path = pathOf(item).toLowerCase();
-    if (fuzzy(path, query)) found.push({ item, rank: matchRank(path, query), length: path.length });
+    if (matches(path, query)) found.push({ item, rank: matchRank(path, query.trim()), length: path.length });
   }
   return found
     .sort((a, b) => a.rank - b.rank || a.length - b.length)

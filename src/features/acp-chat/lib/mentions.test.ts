@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { ago, bestMatches, fileMention, folderMention, foldersOf, mentionsPrompt, mergeVaults, splitMentions, vaultToken } from './mentions';
+import { ago, bestMatches, mentionAt, fileMention, folderMention, foldersOf, mentionsPrompt, mergeVaults, splitMentions, vaultToken } from './mentions';
 
 const conv = (status: 'working' | 'idle') => ({ handle: '#1', agent: 'Claude', title: 'x', status });
 
@@ -40,6 +40,24 @@ describe('menciones', () => {
     // Con parte de la carpeta delante se llega al que se quiere
     expect(best('gate/main', 1)).toEqual(['business-gateway/src/main.yaml']);
     expect(best('', 2)).toEqual(paths.slice(0, 2));
+  });
+
+  it('busca nombres con espacios sin confundirlos con el resto de la frase', () => {
+    expect(mentionAt('mira @Algo con', [])).toEqual({ query: 'algo con', start: 5 });
+    expect(mentionAt('mira @ algo', [])).toBeNull();
+    expect(mentionAt('mira @algo\ny más', [])).toBeNull();
+    expect(mentionAt('@Bóveda#2 dime', [])).toBeNull();
+    const picked = fileMention('notas/algo con espacio.md');
+    expect(mentionAt(`mira ${picked.token} y dime`, [picked])).toBeNull();
+    expect(mentionAt(`mira ${picked.token} y @otra`, [picked])?.query).toBe('otra');
+
+    const paths = ['a/lago/mi conejo.md', 'notas/algo con espacio.md', 'notas/espacio de algo.md'];
+    const best = (q: string) => bestMatches(paths, (p) => p, q, 10);
+    expect(best('algo con')).toEqual(['notas/algo con espacio.md']);
+    expect(best('algo ')[0]).toBe('notas/algo con espacio.md');
+    // Las palabras en otro orden también valen; letras sueltas de una frase, no
+    expect(best('espacio algo')).toEqual(['notas/espacio de algo.md', 'notas/algo con espacio.md']);
+    expect(best('a y dime')).toEqual([]);
   });
 
   it('saca las carpetas de las rutas y menciona una con barra final', () => {
